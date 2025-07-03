@@ -78,6 +78,11 @@ def classify_risk(score):
     elif score > 0: return "LOW"
     return "NONE"
 
+def cve_exists(cve_id):
+    query = "MATCH (c:CVE {name: $cve_id}) RETURN c LIMIT 1"
+    result = graph.run(query, cve_id=cve_id).data()
+    return len(result) > 0
+
 # ======================== 7. FETCH NVD DATA ========================
 def fetch_cve_nvd(start=0, results_per_page=20):
     url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?startIndex={start}&resultsPerPage={results_per_page}"
@@ -88,6 +93,11 @@ def fetch_cve_nvd(start=0, results_per_page=20):
 def insert_cve_neo4j(item):
     cve_id = item["cve"]["id"]
     if cve_id not in target_cves:
+        return
+
+    # Vérifie si existe déjà
+    if cve_exists(cve_id):
+        print(f"ℹ️ CVE {cve_id} existe déjà, insertion ignorée.")
         return
 
     description = item["cve"]["descriptions"][0]["value"]
@@ -129,7 +139,7 @@ def insert_cve_neo4j(item):
             rdf_graph.add((rdf_cve, CYBER.cvssRiskLevel, Literal(risk)))
             break
 
-    graph.merge(cve_node, "CVE", "name")
+    graph.create(cve_node)
     rdf_graph.add((rdf_cve, RDF.type, STUCO.Vulnerability))
     rdf_graph.add((rdf_cve, RDFS.label, Literal(cve_id)))
     rdf_graph.add((rdf_cve, RDFS.comment, Literal(description)))
@@ -220,5 +230,6 @@ def pipeline_kg1_pagination(max_pages=5, page_size=2000):
 # ======================== 10. EXECUTION ========================
 if __name__ == "__main__":
     pipeline_kg1_pagination(max_pages=50, page_size=2000)
+
 
 
