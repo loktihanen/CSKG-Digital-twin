@@ -6,7 +6,7 @@ import requests
 import time
 
 # ======================== 2. CONNEXION NEO4J DESKTOP ========================
-uri = "bolt://127.0.0.1:7687"
+uri = "neo4j://127.0.0.1:7687"
 user = "neo4j"
 password = "Hanen123"
 graph = Graph(uri, auth=(user, password))
