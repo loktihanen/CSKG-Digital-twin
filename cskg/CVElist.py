@@ -211,5 +211,5 @@ def pipeline_kg1_pagination(max_pages=5, page_size=2000):
 
 # ======================== 10. EXECUTION ========================
 if __name__ == "__main__":
-    pipeline_kg1_pagination(max_pages=10, page_size=2000)
+    pipeline_kg1_pagination(max_pages=50, page_size=2000)
 
