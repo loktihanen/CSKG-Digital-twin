@@ -63,7 +63,9 @@ jobs:
        # run: python cskg/digital_twin_update.py
       
       - name: Run CSKG1 (NVD)
-        run: python cskg/cskg1NVD.py
+        run: python cskg/CVElist.py
+      #- name: Run CSKG1 (NVD)
+       # run: python cskg/cskg1NVD.py
       #- name: Run KG1 (NVD)
         #run: python cskg/collect_nvd.py
 
