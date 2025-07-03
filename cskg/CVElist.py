@@ -36,22 +36,21 @@ for label, uri in classes:
     rdf_graph.add((uri, RDF.type, OWL.Class))
     rdf_graph.add((uri, RDFS.label, Literal(label)))
 
+# Propriétés CVSS
+rdf_graph.add((CYBER.vectorString, RDF.type, OWL.DatatypeProperty))
+rdf_graph.add((CYBER.baseScore, RDF.type, OWL.DatatypeProperty))
+rdf_graph.add((CYBER.cvssRiskLevel, RDF.type, OWL.DatatypeProperty))
+
 # ======================== 4. NER AVEC BERT ========================
 ner = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
 
 # ======================== 5. LISTE CVE CIBLÉES ========================
 target_cves = {
-    "CVE-1999-0517", "CVE-1999-0524",
-    "CVE-2003-0001",
-    "CVE-2004-2761",
-    "CVE-2005-4900",
-    "CVE-2011-3525",
-    "CVE-2012-1675", "CVE-2012-1708",
-    "CVE-2013-2566",
-    "CVE-2014-3566",
-    "CVE-2015-0204", "CVE-2015-2808", "CVE-2015-6358", "CVE-2015-7255",
-    "CVE-2015-7256", "CVE-2015-7276", "CVE-2015-8251",
-    "CVE-2016-0800", "CVE-2016-2183"
+    "CVE-1999-0517", "CVE-1999-0524", "CVE-2003-0001", "CVE-2004-2761",
+    "CVE-2005-4900", "CVE-2011-3525", "CVE-2012-1675", "CVE-2012-1708",
+    "CVE-2013-2566", "CVE-2014-3566", "CVE-2015-0204", "CVE-2015-2808",
+    "CVE-2015-6358", "CVE-2015-7255", "CVE-2015-7256", "CVE-2015-7276",
+    "CVE-2015-8251", "CVE-2016-0800", "CVE-2016-2183"
 }
 
 # ======================== 6. UTIL ========================
@@ -66,6 +65,13 @@ def parse_cpe(cpe_uri):
         }
     except:
         return {}
+
+def classify_risk(score):
+    if score >= 9: return "CRITICAL"
+    elif score >= 7: return "HIGH"
+    elif score >= 4: return "MEDIUM"
+    elif score > 0: return "LOW"
+    return "NONE"
 
 # ======================== 7. FETCH NVD DATA ========================
 def fetch_cve_nvd(start=0, results_per_page=20):
@@ -84,14 +90,38 @@ def insert_cve_neo4j(item):
     last_updated = item["cve"].get("lastModified") or published
 
     cve_node = Node("CVE", name=cve_id, description=description, source="NVD")
-    if published:
-        cve_node["published"] = published
-    if last_updated:
-        cve_node["lastUpdated"] = last_updated
+    if published: cve_node["published"] = published
+    if last_updated: cve_node["lastUpdated"] = last_updated
     cve_node["uri"] = f"http://example.org/cve/{cve_id}"
-    graph.merge(cve_node, "CVE", "name")
-
     rdf_cve = URIRef(cve_node["uri"])
+
+    # CVSS enrichissement
+    cvss_data = item["cve"].get("metrics", {})
+    for key in ["cvssMetricV31", "cvssMetricV30"]:
+        if key in cvss_data:
+            cvss = cvss_data[key][0].get("cvssData", {})
+            score = cvss.get("baseScore")
+            risk = classify_risk(score) if score is not None else None
+
+            cve_node.update({
+                "cvssVersion": key,
+                "cvssBaseScore": score,
+                "attackVector": cvss.get("attackVector"),
+                "attackComplexity": cvss.get("attackComplexity"),
+                "privilegesRequired": cvss.get("privilegesRequired"),
+                "userInteraction": cvss.get("userInteraction"),
+                "confidentialityImpact": cvss.get("confidentialityImpact"),
+                "integrityImpact": cvss.get("integrityImpact"),
+                "availabilityImpact": cvss.get("availabilityImpact"),
+                "vectorString": cvss.get("vectorString"),
+                "cvssRiskLevel": risk
+            })
+            rdf_graph.add((rdf_cve, CYBER.vectorString, Literal(cvss.get("vectorString"))))
+            rdf_graph.add((rdf_cve, CYBER.baseScore, Literal(score)))
+            rdf_graph.add((rdf_cve, CYBER.cvssRiskLevel, Literal(risk)))
+            break
+
+    graph.merge(cve_node, "CVE", "name")
     rdf_graph.add((rdf_cve, RDF.type, STUCO.Vulnerability))
     rdf_graph.add((rdf_cve, RDFS.label, Literal(cve_id)))
     rdf_graph.add((rdf_cve, RDFS.comment, Literal(description)))
@@ -109,7 +139,7 @@ def insert_cve_neo4j(item):
                 rdf_graph.add((rdf_cwe, RDFS.label, Literal(cwe_id)))
                 rdf_graph.add((rdf_cve, CYBER.associatedWith, rdf_cwe))
 
-    # CPE et enrichissement
+    # CPE
     for config in item["cve"].get("configurations", [{}])[0].get("nodes", []):
         for cpe in config.get("cpeMatch", []):
             cpe_uri = cpe["criteria"]
@@ -149,7 +179,7 @@ def insert_cve_neo4j(item):
             rdf_graph.add((rdf_capec, RDFS.label, Literal(capec_id)))
             rdf_graph.add((rdf_cve, CYBER.hasCAPEC, rdf_capec))
 
-    # NER Entities
+    # NER
     try:
         entities = ner(description)
         for ent in entities:
@@ -161,19 +191,25 @@ def insert_cve_neo4j(item):
     except Exception as e:
         print(f"⚠️ NER erreur sur {cve_id}: {e}")
 
-# ======================== 9. PIPELINE ========================
-def pipeline_kg1(start=0, results_per_page=2000):
-    print("🚀 Extraction CVE depuis NVD...")
-    data = fetch_cve_nvd(start=start, results_per_page=results_per_page)
-    for item in data.get("vulnerabilities", []):
-        try:
-            insert_cve_neo4j(item)
-            time.sleep(0.2)
-        except Exception as e:
-            print(f"[!] Erreur {item['cve']['id']}: {e}")
+# ======================== 9. PIPELINE PAGINÉE ========================
+def pipeline_kg1_pagination(max_pages=5, page_size=2000):
+    for i in range(max_pages):
+        start = i * page_size
+        print(f"📦 Page {i+1} – récupération de {page_size} CVE à partir de {start}")
+        data = fetch_cve_nvd(start=start, results_per_page=page_size)
+        if not data.get("vulnerabilities"):
+            print("✅ Fin des données.")
+            break
+        for item in data["vulnerabilities"]:
+            try:
+                insert_cve_neo4j(item)
+                time.sleep(0.2)
+            except Exception as e:
+                print(f"[!] Erreur {item['cve']['id']}: {e}")
     rdf_graph.serialize(destination="kg1.ttl", format="turtle")
-    print("✅ KG1 inséré dans Neo4j et kg1.ttl mis à jour.")
+    print("✅ Neo4j & RDF mis à jour.")
 
-# ======================== 10. EXÉCUTION ========================
+# ======================== 10. EXECUTION ========================
 if __name__ == "__main__":
-    pipeline_kg1(start=0, results_per_page=2000)
+    pipeline_kg1_pagination(max_pages=10, page_size=2000)
+
