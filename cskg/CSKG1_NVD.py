@@ -1,4 +1,4 @@
-# ======================== 1. IMPORTS ========================
+# ======================== 1. IMPORTS ======================== 
 from py2neo import Graph, Node, Relationship
 try:
     import numpy as np
@@ -19,12 +19,12 @@ user = "neo4j"
 password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
 graph = Graph(uri, auth=(user, password))
 
-
 try:
     info = graph.run("RETURN 1").data()
     print("Connexion Neo4j réussie :", info)
 except Exception as e:
     print("Erreur de connexion Neo4j :", e)
+    exit(1)  # Quitte si impossible de se connecter
 
 # ======================== 3. ONTOLOGIE RDF ========================
 rdf_graph = RDFGraph()
@@ -58,6 +58,7 @@ ner = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple"
 def fetch_cve_nvd(start=0, results_per_page=20):
     url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?startIndex={start}&resultsPerPage={results_per_page}"
     response = requests.get(url)
+    response.raise_for_status()
     return response.json()
 
 # ======================== 6. UTILS ========================
@@ -83,11 +84,12 @@ def classify_risk(score):
 # ======================== 7. INSERTION ========================
 def insert_cve_neo4j(item):
     cve_id = item["cve"]["id"]
-    # Extraire année pour filtrage
+
+    # Extraire année et filtrer sur 1999 à 2010
     try:
         year = int(cve_id.split("-")[1])
         if year < 1999 or year > 2010:
-            return  # Ignore hors période
+            return  # Ignore hors période ciblée
     except:
         return
 
@@ -95,6 +97,7 @@ def insert_cve_neo4j(item):
     published = item["cve"].get("published")
     last_updated = item["cve"].get("lastModified") or published
 
+    # Vérification si déjà présent avec même description
     existing_node = graph.nodes.match("CVE", name=cve_id).first()
     if existing_node:
         if existing_node.get("description") == description:
@@ -106,7 +109,6 @@ def insert_cve_neo4j(item):
         cve_node["published"] = published
     if last_updated:
         cve_node["lastUpdated"] = last_updated
-    # URI RDF
     cve_node["uri"] = f"http://example.org/cve/{cve_id}"
 
     # CVSS metrics
@@ -177,15 +179,15 @@ def insert_cve_neo4j(item):
                 graph.merge(Relationship(product_node, "hasVersion", version_node))
                 graph.merge(Relationship(product_node, "publishedBy", vendor_node))
                 graph.merge(Relationship(cpe_node, "identifies", product_node))
-                graph.merge(Relationship(product_node, "hasCVE", cve_node))  # lien produit -> cve
+                graph.merge(Relationship(product_node, "hasCVE", cve_node))
 
                 # URI RDF
                 rdf_cpe = URIRef(f"http://example.org/cpe#{cpe_uri}")
                 rdf_graph.add((rdf_cpe, RDF.type, STUCO.Platform))
                 rdf_graph.add((rdf_cpe, RDFS.label, Literal(cpe_uri)))
                 rdf_graph.add((rdf_cve, CYBER.affects, rdf_cpe))
-    except:
-        pass
+    except Exception as e:
+        print(f"⚠️ Erreur lors du traitement des CPE pour {cve_id} : {e}")
 
     # CAPEC
     try:
@@ -204,8 +206,8 @@ def insert_cve_neo4j(item):
                 rdf_graph.add((rdf_capec, RDF.type, CYBER.CAPEC))
                 rdf_graph.add((rdf_capec, RDFS.label, Literal(capec_id)))
                 rdf_graph.add((rdf_cve, CYBER.hasCAPEC, rdf_capec))
-    except:
-        pass
+    except Exception as e:
+        print(f"⚠️ Erreur lors du traitement des CAPEC pour {cve_id} : {e}")
 
     # Entités NER
     try:
@@ -224,22 +226,30 @@ def pipeline_kg1_all(start_year=1999, end_year=2010, page_size=2000):
     start_index = 0
     while True:
         print(f"📦 Traitement à partir de l'index {start_index}")
-        data = fetch_cve_nvd(start=start_index, results_per_page=page_size)
+        try:
+            data = fetch_cve_nvd(start=start_index, results_per_page=page_size)
+        except Exception as e:
+            print(f"Erreur API NVD : {e}, arrêt du pipeline.")
+            break
+
         vulns = data.get("vulnerabilities", [])
         if not vulns:
             print("✅ Fin des données.")
             break
+
         for item in vulns:
             try:
-                # On vérifie l'année dans insert_cve_neo4j donc pas besoin ici
                 insert_cve_neo4j(item)
                 time.sleep(0.2)
             except Exception as e:
-                print(f"[!] Erreur: {e}")
+                print(f"[!] Erreur insertion CVE {item.get('cve', {}).get('id', 'N/A')}: {e}")
+
         start_index += page_size
+
     rdf_graph.serialize(destination="kg1.ttl", format="turtle")
     print("✅ Insertion terminée et RDF sauvegardé.")
 
 # ======================== 9. EXECUTION ========================
 if __name__ == "__main__":
     pipeline_kg1_all(start_year=1999, end_year=2010, page_size=2000)
+
