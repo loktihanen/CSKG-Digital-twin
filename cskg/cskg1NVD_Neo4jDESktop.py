@@ -6,15 +6,10 @@ import requests
 import time
 
 # ======================== 2. CONNEXION NEO4J DESKTOP ========================
-from py2neo import Graph
-
-# Connexion locale via Neo4j Desktop
 uri = "bolt://127.0.0.1:7687"
 user = "neo4j"
-password = "Hanen123"  # Ton mot de passe défini dans Neo4j Desktop
-
+password = "Hanen123"
 graph = Graph(uri, auth=(user, password))
-
 
 # ======================== 3. ONTOLOGIE RDF ========================
 rdf_graph = RDFGraph()
@@ -41,7 +36,6 @@ for label, uri in classes:
     rdf_graph.add((uri, RDF.type, OWL.Class))
     rdf_graph.add((uri, RDFS.label, Literal(label)))
 
-# Propriétés CVSS
 rdf_graph.add((CYBER.vectorString, RDF.type, OWL.DatatypeProperty))
 rdf_graph.add((CYBER.baseScore, RDF.type, OWL.DatatypeProperty))
 rdf_graph.add((CYBER.cvssRiskLevel, RDF.type, OWL.DatatypeProperty))
@@ -100,7 +94,6 @@ def insert_cve_neo4j(item):
     cve_node["uri"] = f"http://example.org/cve/{cve_id}"
     rdf_cve = URIRef(cve_node["uri"])
 
-    # CVSS enrichissement
     cvss_data = item["cve"].get("metrics", {})
     for key in ["cvssMetricV31", "cvssMetricV30"]:
         if key in cvss_data:
@@ -131,7 +124,6 @@ def insert_cve_neo4j(item):
     rdf_graph.add((rdf_cve, RDFS.label, Literal(cve_id)))
     rdf_graph.add((rdf_cve, RDFS.comment, Literal(description)))
 
-    # CWE
     for weakness in item["cve"].get("weaknesses", []):
         for desc in weakness.get("description", []):
             cwe_id = desc["value"]
@@ -144,7 +136,6 @@ def insert_cve_neo4j(item):
                 rdf_graph.add((rdf_cwe, RDFS.label, Literal(cwe_id)))
                 rdf_graph.add((rdf_cve, CYBER.associatedWith, rdf_cwe))
 
-    # CPE
     for config in item["cve"].get("configurations", [{}])[0].get("nodes", []):
         for cpe in config.get("cpeMatch", []):
             cpe_uri = cpe["criteria"]
@@ -170,7 +161,6 @@ def insert_cve_neo4j(item):
             rdf_graph.add((rdf_cpe, RDFS.label, Literal(cpe_uri)))
             rdf_graph.add((rdf_cve, CYBER.affects, rdf_cpe))
 
-    # CAPEC
     for ref in item["cve"].get("references", []):
         url = ref.get("url", "")
         if "CAPEC-" in url:
@@ -184,7 +174,6 @@ def insert_cve_neo4j(item):
             rdf_graph.add((rdf_capec, RDFS.label, Literal(capec_id)))
             rdf_graph.add((rdf_cve, CYBER.hasCAPEC, rdf_capec))
 
-    # NER
     try:
         entities = ner(description)
         for ent in entities:
@@ -197,7 +186,7 @@ def insert_cve_neo4j(item):
         print(f"⚠️ NER erreur sur {cve_id}: {e}")
 
 # ======================== 9. PIPELINE PAGINÉE ========================
-def pipeline_kg1_pagination(max_pages=5, page_size=2000):
+def pipeline_kg1_pagination(max_pages=5, page_size=20):
     for i in range(max_pages):
         start = i * page_size
         print(f"📦 Page {i+1} – récupération de {page_size} CVE à partir de {start}")
@@ -216,4 +205,5 @@ def pipeline_kg1_pagination(max_pages=5, page_size=2000):
 
 # ======================== 10. EXECUTION ========================
 if __name__ == "__main__":
-    pipeline_kg1_pagination(max_pages=50, page_size=2000)
+    pipeline_kg1_pagination(max_pages=3, page_size=20)
+
