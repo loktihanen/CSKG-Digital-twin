@@ -62,8 +62,10 @@ jobs:
       #- name: Run digital_twin_update
        # run: python cskg/digital_twin_update.py
       
-      - name: Run KG1 (NVD)
-        run: python cskg/collect_nvd.py
+      - name: Run CSKG1 (NVD)
+        run: python cskg/cskg1NVD.py
+      #- name: Run KG1 (NVD)
+        #run: python cskg/collect_nvd.py
 
       #- name: Run KG2 (Nessus)
        # run: python cskg/inject_nessus.py
