@@ -83,7 +83,6 @@ def classify_risk(score):
     return "NONE"
 
 def safe_uri(s):
-    # Encode tous les caractères sauf : / # pour URI correctes
     return quote(s, safe=':/#')
 
 # ======================== 7. INSERTION ========================
@@ -91,7 +90,6 @@ def insert_cve_neo4j(item):
     cve_id = item["cve"]["id"]
     print(f"🔎 Traitement de {cve_id}")
 
-    # Filtrer années 1999 à 2010
     try:
         year = int(cve_id.split("-")[1])
         if year < 1999 or year > 2010:
@@ -118,7 +116,6 @@ def insert_cve_neo4j(item):
         cve_node["lastUpdated"] = last_updated
     cve_node["uri"] = f"http://example.org/cve/{cve_id}"
 
-    # CVSS metrics
     try:
         metrics = item["cve"].get("metrics", {})
         if "cvssMetricV31" in metrics:
@@ -134,13 +131,11 @@ def insert_cve_neo4j(item):
 
     graph.merge(cve_node, "CVE", "name")
 
-    # RDF CVE
     rdf_cve = URIRef(cve_node["uri"])
     rdf_graph.add((rdf_cve, RDF.type, STUCO.Vulnerability))
     rdf_graph.add((rdf_cve, RDFS.label, Literal(cve_id)))
     rdf_graph.add((rdf_cve, RDFS.comment, Literal(description)))
 
-    # CWE
     for weakness in item["cve"].get("weaknesses", []):
         for desc in weakness.get("description", []):
             cwe_id = desc["value"]
@@ -163,7 +158,6 @@ def insert_cve_neo4j(item):
                 rdf_graph.add((rdf_cwe, RDFS.label, Literal(cwe_id)))
                 rdf_graph.add((rdf_cve, CYBER.associatedWith, rdf_cwe))
 
-    # CPE
     try:
         nodes = item["cve"].get("configurations", [{}])[0].get("nodes", [])
         for config in nodes:
@@ -178,9 +172,9 @@ def insert_cve_neo4j(item):
                 product_node = Node("Product", name=parsed.get("product", "unknown"), source="NVD")
                 version_node = Node("Version", name=parsed.get("version", "unknown"), source="NVD")
 
-                graph.merge(vendor_node, "Vendor", "name")
-                graph.merge(product_node, "Product", "name")
-                graph.merge(version_node, "Version", "name")
+                graph.merge(vendor_node, "Vendor", ("name", "source"))
+                graph.merge(product_node, "Product", ("name", "source"))
+                graph.merge(version_node, "Version", ("name", "source"))
 
                 graph.merge(Relationship(product_node, "hasVersion", version_node))
                 graph.merge(Relationship(product_node, "publishedBy", vendor_node))
@@ -194,7 +188,6 @@ def insert_cve_neo4j(item):
     except Exception as e:
         print(f"⚠️ Erreur lors du traitement des CPE pour {cve_id} : {e}")
 
-    # CAPEC
     try:
         for ref in item["cve"].get("references", []):
             url = ref.get("url", "")
@@ -214,14 +207,13 @@ def insert_cve_neo4j(item):
     except Exception as e:
         print(f"⚠️ Erreur lors du traitement des CAPEC pour {cve_id} : {e}")
 
-    # Entités NER
     try:
         entities = ner(description)
         for ent in entities:
             word = ent["word"]
             ent_type = ent["entity_group"]
             ent_node = Node("Entity", name=word, entityType=ent_type, source="NVD")
-            graph.merge(ent_node, "Entity", "name")
+            graph.merge(ent_node, "Entity", ("name", "source"))
             graph.merge(Relationship(cve_node, "mentions", ent_node))
     except Exception as e:
         print(f"⚠️ NER erreur sur {cve_id}: {e}")
@@ -229,7 +221,7 @@ def insert_cve_neo4j(item):
 # ======================== 8. PIPELINE COMPLET ========================
 def pipeline_kg1_all(start_year=1999, end_year=2010, page_size=2000):
     start_index = 0
-    max_iterations = 50  # Sécurité pour limiter appels API (optionnel)
+    max_iterations = 50
     iteration = 0
     while True:
         if iteration >= max_iterations:
@@ -266,8 +258,4 @@ def pipeline_kg1_all(start_year=1999, end_year=2010, page_size=2000):
 if __name__ == "__main__":
     pipeline_kg1_all(start_year=1999, end_year=2010, page_size=2000)
 
-
-# ======================== 9. EXECUTION ========================
-if __name__ == "__main__":
-    pipeline_kg1_all(start_year=1999, end_year=2010, page_size=2000)
 
