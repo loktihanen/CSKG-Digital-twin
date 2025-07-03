@@ -11,6 +11,8 @@ user = "neo4j"
 password = "Hanen123"
 graph = Graph(uri, auth=(user, password))
 
+
+
 # ======================== 3. ONTOLOGIE RDF ========================
 rdf_graph = RDFGraph()
 UCO = Namespace("https://ontology.unifiedcyberontology.org/uco#")
@@ -43,16 +45,7 @@ rdf_graph.add((CYBER.cvssRiskLevel, RDF.type, OWL.DatatypeProperty))
 # ======================== 4. NER AVEC BERT ========================
 ner = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
 
-# ======================== 5. LISTE CVE CIBLÉES ========================
-target_cves = {
-    "CVE-1999-0517", "CVE-1999-0524", "CVE-2003-0001", "CVE-2004-2761",
-    "CVE-2005-4900", "CVE-2011-3525", "CVE-2012-1675", "CVE-2012-1708",
-    "CVE-2013-2566", "CVE-2014-3566", "CVE-2015-0204", "CVE-2015-2808",
-    "CVE-2015-6358", "CVE-2015-7255", "CVE-2015-7256", "CVE-2015-7276",
-    "CVE-2015-8251", "CVE-2016-0800", "CVE-2016-2183"
-}
-
-# ======================== 6. UTIL ========================
+# ======================== 5. UTIL ========================
 def parse_cpe(cpe_uri):
     try:
         parts = cpe_uri.split(":")
@@ -72,18 +65,15 @@ def classify_risk(score):
     elif score > 0: return "LOW"
     return "NONE"
 
-# ======================== 7. FETCH NVD DATA ========================
+# ======================== 6. FETCH NVD DATA ========================
 def fetch_cve_nvd(start=0, results_per_page=20):
     url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?startIndex={start}&resultsPerPage={results_per_page}"
     response = requests.get(url)
     return response.json()
 
-# ======================== 8. INSERTION ENRICHIE ========================
+# ======================== 7. INSERTION ENRICHIE ========================
 def insert_cve_neo4j(item):
     cve_id = item["cve"]["id"]
-    if cve_id not in target_cves:
-        return
-
     description = item["cve"]["descriptions"][0]["value"]
     published = item["cve"].get("published")
     last_updated = item["cve"].get("lastModified") or published
@@ -185,25 +175,31 @@ def insert_cve_neo4j(item):
     except Exception as e:
         print(f"⚠️ NER erreur sur {cve_id}: {e}")
 
-# ======================== 9. PIPELINE PAGINÉE ========================
-def pipeline_kg1_pagination(max_pages=5, page_size=20):
-    for i in range(max_pages):
-        start = i * page_size
-        print(f"📦 Page {i+1} – récupération de {page_size} CVE à partir de {start}")
-        data = fetch_cve_nvd(start=start, results_per_page=page_size)
-        if not data.get("vulnerabilities"):
+# ======================== 8. PIPELINE COMPLETE ========================
+def pipeline_kg1_all(start_year=1999, end_year=2025, page_size=2000):
+    start_index = 0
+    while True:
+        print(f"📦 Traitement à partir de l'index {start_index}")
+        data = fetch_cve_nvd(start=start_index, results_per_page=page_size)
+        vulns = data.get("vulnerabilities", [])
+        if not vulns:
             print("✅ Fin des données.")
             break
-        for item in data["vulnerabilities"]:
+        for item in vulns:
             try:
-                insert_cve_neo4j(item)
-                time.sleep(0.2)
+                cve_id = item["cve"]["id"]
+                year = int(cve_id.split("-")[1])
+                if start_year <= year <= end_year:
+                    insert_cve_neo4j(item)
+                    time.sleep(0.2)
             except Exception as e:
-                print(f"[!] Erreur {item['cve']['id']}: {e}")
+                print(f"[!] Erreur: {e}")
+        start_index += page_size
     rdf_graph.serialize(destination="kg1.ttl", format="turtle")
-    print("✅ Neo4j & RDF mis à jour.")
+    print("✅ Insertion terminée et RDF sauvegardé.")
 
-# ======================== 10. EXECUTION ========================
+# ======================== 9. EXECUTION ========================
 if __name__ == "__main__":
-    pipeline_kg1_pagination(max_pages=3, page_size=20)
+    pipeline_kg1_all(start_year=1999, end_year=2025, page_size=2000)
+
 
