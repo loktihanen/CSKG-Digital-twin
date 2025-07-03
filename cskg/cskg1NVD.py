@@ -6,6 +6,7 @@ import requests
 import time
 from datetime import datetime
 
+
 # ======================== 2. CONNEXION NEO4J ========================
 uri = "bolt://localhost:7687"  # Connexion locale Neo4j
 user = "neo4j"
