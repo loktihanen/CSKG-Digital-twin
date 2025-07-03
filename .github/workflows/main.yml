@@ -61,7 +61,9 @@ jobs:
 
       #- name: Run digital_twin_update
        # run: python cskg/digital_twin_update.py
-      
+
+      - name: Run CSKG1 (NVD) local
+        run: python cskg/cskg1NVD_Neo4jDESktop.py
       - name: Run CSKG1 (NVD)
         run: python cskg/CVElist.py
       #- name: Run CSKG1 (NVD)
