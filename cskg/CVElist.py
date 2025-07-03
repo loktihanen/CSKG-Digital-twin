@@ -27,6 +27,16 @@ rdf_graph.bind("cwe", CWE)
 rdf_graph.bind("cpe", CPE)
 rdf_graph.bind("capec", CAPEC)
 
+# Propriétés CVSS
+rdf_graph.add((CYBER.vectorString, RDF.type, OWL.DatatypeProperty))
+rdf_graph.add((CYBER.baseScore, RDF.type, OWL.DatatypeProperty))
+rdf_graph.add((CYBER.cvssRiskLevel, RDF.type, OWL.DatatypeProperty))
+
+# Propriété source ajoutée
+CYBER_source = Namespace("http://example.org/cyber#")
+CYBER.source = CYBER_source.source
+rdf_graph.add((CYBER.source, RDF.type, OWL.DatatypeProperty))
+
 classes = [
     ("CVE", STUCO.Vulnerability), ("CWE", STUCO.Weakness), ("CPE", STUCO.Platform),
     ("Entity", CYBER.Entity), ("CAPEC", CYBER.CAPEC), ("Vendor", CYBER.Vendor),
@@ -35,11 +45,6 @@ classes = [
 for label, uri in classes:
     rdf_graph.add((uri, RDF.type, OWL.Class))
     rdf_graph.add((uri, RDFS.label, Literal(label)))
-
-# Propriétés CVSS
-rdf_graph.add((CYBER.vectorString, RDF.type, OWL.DatatypeProperty))
-rdf_graph.add((CYBER.baseScore, RDF.type, OWL.DatatypeProperty))
-rdf_graph.add((CYBER.cvssRiskLevel, RDF.type, OWL.DatatypeProperty))
 
 # ======================== 4. NER AVEC BERT ========================
 ner = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
@@ -94,6 +99,9 @@ def insert_cve_neo4j(item):
     if last_updated: cve_node["lastUpdated"] = last_updated
     cve_node["uri"] = f"http://example.org/cve/{cve_id}"
     rdf_cve = URIRef(cve_node["uri"])
+
+    # Ajout de la source dans RDF
+    rdf_graph.add((rdf_cve, CYBER.source, Literal("NVD")))
 
     # CVSS enrichissement
     cvss_data = item["cve"].get("metrics", {})
@@ -212,4 +220,5 @@ def pipeline_kg1_pagination(max_pages=5, page_size=2000):
 # ======================== 10. EXECUTION ========================
 if __name__ == "__main__":
     pipeline_kg1_pagination(max_pages=50, page_size=2000)
+
 
