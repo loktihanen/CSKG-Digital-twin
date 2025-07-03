@@ -64,6 +64,9 @@ jobs:
 
       - name: Run CSKG1_NVD 
         run: python cskg/CSKG1_NVD.py
+
+      - name: Run CSKG2_Nessus 
+        run: python cskg/CSKG2_Nessus.py
         
       - name: Run CSKG1 (NVD) local
         run: python cskg/cskg1NVD_Neo4jDESktop.py
