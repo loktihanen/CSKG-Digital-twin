@@ -6,10 +6,15 @@ import requests
 import time
 
 # ======================== 2. CONNEXION NEO4J DESKTOP ========================
-uri = "neo4j://127.0.0.1:7687"
+from py2neo import Graph
+
+uri = "bolt://127.0.0.1:7687"
 user = "neo4j"
 password = "Hanen123"
 graph = Graph(uri, auth=(user, password))
+
+# Test de connexion simple
+print(graph.run("RETURN 1").data())
 
 
 
