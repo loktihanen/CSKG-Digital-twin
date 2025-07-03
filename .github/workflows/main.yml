@@ -1,0 +1,120 @@
+name: Run Cyber Digital Twin Pipeline
+
+on:
+  push:
+    branches: [ main ]         # Pour déclencher à chaque mise à jour de code
+  workflow_dispatch:           # Pour lancer manuellement si besoin
+  schedule:
+    - cron: '0 3 * * *'        # Exécution automatique tous les jours à 4h heure tunisienne (3h UTC)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      #- name: Install other dependencies
+       # run: pip install -r requirements.txt
+        
+      - name: Install PyTorch (CPU)
+        run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+      - name: 🔧 Install PyG (compatible with torch==2.7.1+cpu)
+        run: |
+         pip install torch==2.1.0+cpu torchvision==0.16.0+cpu torchaudio==2.1.0+cpu --index-url https://download.pytorch.org/whl/cpu
+         pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
+         pip install torch-sparse -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
+         pip install torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
+         pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
+         pip install torch-geometric
+
+      #- name: Install other dependencies
+        #run: pip install -r requirements.txt
+
+      #- name: Install base dependencies
+     #   run: |
+        #  pip install numpy
+        #  pip install -r requirements.txt
+        #  pip install transformers --upgrade
+      - name: Install base dependencies (NumPy compatible)
+        run: |
+          pip uninstall -y numpy
+          pip install "numpy<2"
+          pip install -r requirements.txt
+          pip install transformers --upgrade
+
+      - name: Debug installed packages
+        run: pip list
+
+
+     # - name: Run embeddingsRotateRGCN script
+       # run: python cskg/embeddingsRotateRGCN.py
+
+      #- name: Run digital_twin_update
+       # run: python cskg/digital_twin_update.py
+      
+      - name: Run KG1 (NVD)
+        run: python cskg/collect_nvd.py
+
+      #- name: Run KG2 (Nessus)
+       # run: python cskg/inject_nessus.py
+
+      - name: Run Alignment & Fusion
+        run: python cskg/align_and_merge.py
+     
+      - name: Run Evaluation
+        run: python cskg/evaluate_alignment.py
+       
+      - name: Run Ontologie
+        run: python cskg/ontologie.py
+        
+      - name: Run cskg3_triples
+        run: python cskg/cskg3_triples.py
+        
+      - name: Run embeddingsRotateRGCN script
+        run: python cskg/embeddingsRotateRGCN.py
+
+      - name: Run Evaluation embeddingsRotateR-GCN 
+        run: python cskg/R-GCNRotatEEvaluation.py
+        
+
+      
+ #python cskg/analyse.py
+ #python cskg/propagate_impacts.py
+ #python cskg/fuse_unified_cves.py
+ 
+      #- name: Run Analyse
+        #run: python cskg/analyse.py
+        
+      #- name: Run Cskg3OntologyPipeline
+        #run: python cskg/Cskg3OntologyPipeline.py
+         
+      #- name: Run Analyse
+       # run: python cskg/Cskg3OntologyPipeline.py
+       
+     
+
+      #- name: Train Embeddings
+        #run: python cskg/embeddings_train.py
+      #  run: python cskg/embeddingsRotateRGCN.py
+        
+      #- name: Run R-GCN Prediction
+        #run: python cskg/r_gcn_predict.py
+
+      #- name: Generate Visualizations
+      #  run: python cskg/visualization.py
+      #- name: Run RotatE Prediction
+       # run: python cskg/rotate_predict.py
+     # - name: Run load
+     #   run: python cskg/utils/load_triples.py
+     # - name: Visualisation
+      #  run: python cskg/visualization.py
