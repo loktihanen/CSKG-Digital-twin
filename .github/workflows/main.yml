@@ -87,23 +87,31 @@ jobs:
       - name: Run Alignment_Fusion
         run: python cskg/Alignemnt_RLVersion3.py
 
-      - name: Run Alignment_Fusion
-        run: python cskg/Alignemnt_RLVersion3.py
-     
-      - name: Run Evaluation
-        run: python cskg/evaluate_alignment.py
-       
-      - name: Run Ontologie
-        run: python cskg/ontologie.py
+      - name: Run Embedding
+        run: python cskg/embedding_predectionRgcn_RotatE.py
         
-      - name: Run cskg3_triples
-        run: python cskg/cskg3_triples.py
-        
-      - name: Run embeddingsRotateRGCN script
-        run: python cskg/embeddingsRotateRGCN.py
+      - name: Run Simulation
+        run: python cskg/simulation.py
 
-      - name: Run Evaluation embeddingsRotateR-GCN 
-        run: python cskg/R-GCNRotatEEvaluation.py
+      - name: Run digitalTwin
+        run: python cskg/digitalTwin.py
+
+        
+     
+     # - name: Run Evaluation
+      #  run: python cskg/evaluate_alignment.py
+       
+      #- name: Run Ontologie
+      #  run: python cskg/ontologie.py
+        
+    #  - name: Run cskg3_triples
+    #    run: python cskg/cskg3_triples.py
+        
+    #  - name: Run embeddingsRotateRGCN script
+      #  run: python cskg/embeddingsRotateRGCN.py
+
+      #- name: Run Evaluation embeddingsRotateR-GCN 
+       # run: python cskg/R-GCNRotatEEvaluation.py
         
 
       
