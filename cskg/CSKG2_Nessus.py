@@ -72,8 +72,11 @@ def load_nessus_data(path):
     return df
 
 # ======================== 5. INJECTION DANS NEO4J ========================
+from py2neo import NodeMatcher
+
 def inject_nessus_to_neo4j(df, graph):
     update_date = datetime.utcnow().isoformat()
+    matcher = NodeMatcher(graph)
 
     for idx, row in df.iterrows():
         if idx % 100 == 0:
@@ -110,7 +113,6 @@ def inject_nessus_to_neo4j(df, graph):
             safe_create_rel(graph, Relationship(host_node, "exposes", port_node))
             safe_create_rel(graph, Relationship(port_node, "runsPlugin", plugin_node))
             rdf_graph.add((URIRef(port_uri), RDF.type, CYBER.Port))
-
         else:
             safe_create_rel(graph, Relationship(host_node, "runsPlugin", plugin_node))
 
@@ -140,14 +142,25 @@ def inject_nessus_to_neo4j(df, graph):
         for cve in cve_list:
             cve = cve.strip()
             if cve.startswith("CVE-"):
-                cve_uri = f"http://example.org/cve/{cve}"
-                cve_node = Node("CVE", name=cve, source="Nessus", lastUpdated=update_date, uri=cve_uri)
-                safe_merge(graph, cve_node, "CVE", "name")
-                safe_create_rel(graph, Relationship(plugin_node, "detects", cve_node))
-                safe_create_rel(graph, Relationship(plugin_node, "hasCVE", cve_node))
-                safe_create_rel(graph, Relationship(host_node, "vulnerableTo", cve_node))
-                rdf_graph.add((URIRef(cve_uri), RDF.type, STUCO.Vulnerability))
-                rdf_graph.add((URIRef(cve_uri), RDFS.label, Literal(cve)))
+                # Recherche des nœuds CVE existants avec ce nom
+                existing_cves = list(matcher.match("CVE", name=cve))
+                sources = set(node.get("source", "") for node in existing_cves)
+
+                # Insertion conditionnelle:
+                # - Pas de noeud existant
+                # - Ou uniquement des noeuds "NVD" (donc on ajoute "Nessus")
+                if not existing_cves or (sources == {"NVD"}):
+                    cve_uri = f"http://example.org/cve/{cve}"
+                    cve_node = Node("CVE", name=cve, source="Nessus", lastUpdated=update_date, uri=cve_uri)
+                    safe_merge(graph, cve_node, "CVE", "name")
+                    safe_create_rel(graph, Relationship(plugin_node, "detects", cve_node))
+                    safe_create_rel(graph, Relationship(plugin_node, "hasCVE", cve_node))
+                    safe_create_rel(graph, Relationship(host_node, "vulnerableTo", cve_node))
+                    rdf_graph.add((URIRef(cve_uri), RDF.type, STUCO.Vulnerability))
+                    rdf_graph.add((URIRef(cve_uri), RDFS.label, Literal(cve)))
+                else:
+                    # Le CVE existe déjà avec source "Nessus", on ne fait rien
+                    pass
 
         if severity:
             severity_uri = f"http://example.org/severity/{severity.replace(' ', '_')}"
@@ -156,6 +169,7 @@ def inject_nessus_to_neo4j(df, graph):
             safe_create_rel(graph, Relationship(host_node, "hasSeverity", severity_node))
             rdf_graph.add((URIRef(severity_uri), RDF.type, CYBER.Severity))
             rdf_graph.add((URIRef(severity_uri), RDFS.label, Literal(severity)))
+
 
 # ======================== 6. PIPELINE ========================
 def pipeline_kg2(graph):
