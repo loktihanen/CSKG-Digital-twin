@@ -15,15 +15,17 @@ from align_and_merge import (
 )
 
 # ======================== Connexion ========================
-uri = "neo4j+s://8d5fbce8.databases.neo4j.io"
+uri = "neo4j+s://1cb37128.databases.neo4j.io"
 user = "neo4j"
-password = "VpzGP3RDVB7AtQ1vfrQljYUgxw4VBzy0tUItWeRB9CM"
+password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
+graph = Graph(uri, auth=(user, password))
 
-def connect_to_neo4j():
-    return Graph(uri, auth=(user, password))
-
-graph = connect_to_neo4j()
-print("✅ Connexion Neo4j réussie")
+try:
+    info = graph.run("RETURN 1").data()
+    print("Connexion Neo4j réussie :", info)
+except Exception as e:
+    print("Erreur de connexion Neo4j :", e)
+    exit(1)
 
 # ======================== Vérif maj NVD ========================
 def get_last_nvd_update_in_graph():
