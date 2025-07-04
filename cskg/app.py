@@ -18,13 +18,15 @@ from pyattck import Attck
 from transformers import pipeline
 from rdflib import Graph as RDFGraph, Namespace
 from rdflib.plugins.sparql import prepareQuery
+=========================
 
+=====================
 @st.cache_resource
 def connect_neo4j():
     try:
-        uri = "neo4j+s://8d5fbce8.databases.neo4j.io"
+        uri = "neo4j+s://1cb37128.databases.neo4j.io"
         user = "neo4j"
-        password = "VpzGP3RDVB7AtQ1vfrQljYUgxw4VBzy0tUItWeRB9CM"
+        password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
         graph = Graph(uri, auth=(user, password))
         graph.run("RETURN 1").evaluate()
         st.success("✅ Connexion Neo4j Aura réussie")
