@@ -25,4 +25,6 @@ nvdlib
 pyattck
 transformers
 
+gym
+stable-baselines3
 
