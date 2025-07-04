@@ -57,10 +57,8 @@ class RotatEModel(nn.Module):
         t = self.ent(t_idx)
         r_complex = torch.stack([torch.cos(r), torch.sin(r)], dim=-1)
         h_complex = torch.stack([h, torch.zeros_like(h)], dim=-1)
-        h_r = torch.stack([
-            h_complex[..., 0]*r_complex[..., 0] - h_complex[..., 1]*r_complex[..., 1],
-            h_complex[..., 0]*r_complex[..., 1] + h_complex[..., 1]*r_complex[..., 0]
-        ], dim=-1)
+        h_r = torch.stack([h_complex[..., 0]*r_complex[..., 0] - h_complex[..., 1]*r_complex[..., 1],
+                           h_complex[..., 0]*r_complex[..., 1] + h_complex[..., 1]*r_complex[..., 0]], dim=-1)
         t_complex = torch.stack([t, torch.zeros_like(t)], dim=-1)
         score = -torch.norm(h_r - t_complex, dim=-1).sum(dim=-1)
         return score
@@ -91,7 +89,7 @@ def inject_at_risk_of(predictions, entity2id, rel2id, model, threshold=0.0):
         score = model(
             torch.tensor([entity2id[h]]),
             torch.tensor([rel2id[r]]),
-            torch.tensor([entity2id[t]])
+            torch.tensor([entity2id[t]]),
         ).item()
         print(f"Score({h}, {r}, {t}) = {score:.4f}")
         if score > threshold:
@@ -104,14 +102,14 @@ def inject_at_risk_of(predictions, entity2id, rel2id, model, threshold=0.0):
 
 # --- Étape 5 : Préparation pour R-GCN
 x = torch.randn(len(entity2id), 64)
-edge_index = torch.tensor([
+edge_index = torch.tensor([ 
     [entity2id[h] for h in triplets_df["head"]],
     [entity2id[t] for t in triplets_df["tail"]]
 ], dtype=torch.long)
 edge_type = torch.tensor([rel2id[r] for r in triplets_df["relation"]], dtype=torch.long)
 
 data = Data(x=x, edge_index=edge_index, edge_type=edge_type, num_nodes=len(entity2id))
-data.y = torch.randint(0, 2, (len(entity2id),))  # Dummy labels
+data.y = torch.randint(0, 2, (len(entity2id),))  # Labels fictifs
 train_mask = torch.rand(len(entity2id)) > 0.3
 
 # --- Étape 6 : R-GCN
@@ -150,15 +148,16 @@ def inject_vulnerable_property(entity2id, rgcn_out, threshold=0.5):
         if node:
             node["vulnerable"] = vulnerable
             graph.push(node)
-            print(f"🛡️ Noeud {entity} : vulnerable = {vulnerable}")
+            print(f"🛡️ Noeud {entity} : vulnérable = {vulnerable}")
 
 # --- Pipeline principal
 if __name__ == "__main__":
     print("\n▶️ Injection relations at_risk_of (RotatE)...")
     inject_at_risk_of(triplets_pred, entity2id, rel2id, rotate_model)
 
-    print("\n▶️ Injection propriétés vulnerable (R-GCN)...")
+    print("\n▶️ Injection propriétés vulnérables (R-GCN)...")
     rgcn.eval()
     with torch.no_grad():
         out = rgcn(data)
     inject_vulnerable_property(entity2id, out)
+
