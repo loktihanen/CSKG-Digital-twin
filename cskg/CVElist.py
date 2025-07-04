@@ -27,14 +27,10 @@ rdf_graph.bind("cwe", CWE)
 rdf_graph.bind("cpe", CPE)
 rdf_graph.bind("capec", CAPEC)
 
-# Propriétés CVSS
 rdf_graph.add((CYBER.vectorString, RDF.type, OWL.DatatypeProperty))
 rdf_graph.add((CYBER.baseScore, RDF.type, OWL.DatatypeProperty))
 rdf_graph.add((CYBER.cvssRiskLevel, RDF.type, OWL.DatatypeProperty))
-
-# Propriété source ajoutée
-CYBER_source = Namespace("http://example.org/cyber#")
-CYBER.source = CYBER_source.source
+CYBER.source = Namespace("http://example.org/cyber#source")
 rdf_graph.add((CYBER.source, RDF.type, OWL.DatatypeProperty))
 
 classes = [
@@ -78,8 +74,10 @@ def classify_risk(score):
     elif score > 0: return "LOW"
     return "NONE"
 
-def cve_exists(cve_id):
-    query = "MATCH (c:CVE {name: $cve_id}) RETURN c LIMIT 1"
+def cve_exists_with_source_nvd(cve_id):
+    query = """
+    MATCH (c:CVE {name: $cve_id, source: 'NVD'}) RETURN c LIMIT 1
+    """
     result = graph.run(query, cve_id=cve_id).data()
     return len(result) > 0
 
@@ -95,9 +93,8 @@ def insert_cve_neo4j(item):
     if cve_id not in target_cves:
         return
 
-    # Vérifie si existe déjà
-    if cve_exists(cve_id):
-        print(f"ℹ️ CVE {cve_id} existe déjà, insertion ignorée.")
+    if cve_exists_with_source_nvd(cve_id):
+        print(f"⛔ CVE {cve_id} déjà présente avec source='NVD'. Insertion ignorée.")
         return
 
     description = item["cve"]["descriptions"][0]["value"]
@@ -109,11 +106,8 @@ def insert_cve_neo4j(item):
     if last_updated: cve_node["lastUpdated"] = last_updated
     cve_node["uri"] = f"http://example.org/cve/{cve_id}"
     rdf_cve = URIRef(cve_node["uri"])
-
-    # Ajout de la source dans RDF
     rdf_graph.add((rdf_cve, CYBER.source, Literal("NVD")))
 
-    # CVSS enrichissement
     cvss_data = item["cve"].get("metrics", {})
     for key in ["cvssMetricV31", "cvssMetricV30"]:
         if key in cvss_data:
@@ -144,7 +138,6 @@ def insert_cve_neo4j(item):
     rdf_graph.add((rdf_cve, RDFS.label, Literal(cve_id)))
     rdf_graph.add((rdf_cve, RDFS.comment, Literal(description)))
 
-    # CWE
     for weakness in item["cve"].get("weaknesses", []):
         for desc in weakness.get("description", []):
             cwe_id = desc["value"]
@@ -157,7 +150,6 @@ def insert_cve_neo4j(item):
                 rdf_graph.add((rdf_cwe, RDFS.label, Literal(cwe_id)))
                 rdf_graph.add((rdf_cve, CYBER.associatedWith, rdf_cwe))
 
-    # CPE
     for config in item["cve"].get("configurations", [{}])[0].get("nodes", []):
         for cpe in config.get("cpeMatch", []):
             cpe_uri = cpe["criteria"]
@@ -183,7 +175,6 @@ def insert_cve_neo4j(item):
             rdf_graph.add((rdf_cpe, RDFS.label, Literal(cpe_uri)))
             rdf_graph.add((rdf_cve, CYBER.affects, rdf_cpe))
 
-    # CAPEC
     for ref in item["cve"].get("references", []):
         url = ref.get("url", "")
         if "CAPEC-" in url:
@@ -197,7 +188,6 @@ def insert_cve_neo4j(item):
             rdf_graph.add((rdf_capec, RDFS.label, Literal(capec_id)))
             rdf_graph.add((rdf_cve, CYBER.hasCAPEC, rdf_capec))
 
-    # NER
     try:
         entities = ner(description)
         for ent in entities:
@@ -230,6 +220,7 @@ def pipeline_kg1_pagination(max_pages=5, page_size=2000):
 # ======================== 10. EXECUTION ========================
 if __name__ == "__main__":
     pipeline_kg1_pagination(max_pages=50, page_size=2000)
+
 
 
 
