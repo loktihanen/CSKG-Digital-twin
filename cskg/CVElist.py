@@ -30,8 +30,7 @@ rdf_graph.bind("capec", CAPEC)
 rdf_graph.add((CYBER.vectorString, RDF.type, OWL.DatatypeProperty))
 rdf_graph.add((CYBER.baseScore, RDF.type, OWL.DatatypeProperty))
 rdf_graph.add((CYBER.cvssRiskLevel, RDF.type, OWL.DatatypeProperty))
-CYBER.source = Namespace("http://example.org/cyber#source")
-rdf_graph.add((CYBER.source, RDF.type, OWL.DatatypeProperty))
+rdf_graph.add((CYBER["source"], RDF.type, OWL.DatatypeProperty))  # ✅ Correction ici
 
 classes = [
     ("CVE", STUCO.Vulnerability), ("CWE", STUCO.Weakness), ("CPE", STUCO.Platform),
@@ -106,7 +105,7 @@ def insert_cve_neo4j(item):
     if last_updated: cve_node["lastUpdated"] = last_updated
     cve_node["uri"] = f"http://example.org/cve/{cve_id}"
     rdf_cve = URIRef(cve_node["uri"])
-    rdf_graph.add((rdf_cve, CYBER.source, Literal("NVD")))
+    rdf_graph.add((rdf_cve, CYBER["source"], Literal("NVD")))
 
     cvss_data = item["cve"].get("metrics", {})
     for key in ["cvssMetricV31", "cvssMetricV30"]:
@@ -220,7 +219,6 @@ def pipeline_kg1_pagination(max_pages=5, page_size=2000):
 # ======================== 10. EXECUTION ========================
 if __name__ == "__main__":
     pipeline_kg1_pagination(max_pages=50, page_size=2000)
-
 
 
 
