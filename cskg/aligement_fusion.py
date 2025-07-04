@@ -6,11 +6,17 @@ from sentence_transformers import SentenceTransformer, util
 import pandas as pd
 
 # ======================== 2. CONNEXION NEO4J ========================
-# Connexion à la base Neo4j
-uri = "neo4j+s://8d5fbce8.databases.neo4j.io"
+uri = "neo4j+s://1cb37128.databases.neo4j.io"
 user = "neo4j"
-password = "VpzGP3RDVB7AtQ1vfrQljYUgxw4VBzy0tUItWeRB9CM"
+password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
 graph = Graph(uri, auth=(user, password))
+
+try:
+    info = graph.run("RETURN 1").data()
+    print("Connexion Neo4j réussie :", info)
+except Exception as e:
+    print("Erreur de connexion Neo4j :", e)
+    exit(1)
 
 # ======================== 3. ONTOLOGIE RDF EXPORT ========================
 rdf_graph = RDFGraph()
