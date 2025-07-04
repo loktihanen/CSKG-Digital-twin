@@ -336,7 +336,7 @@ elif menu == "CSKG3 – Fusionné":
         st.metric("🧬 Nœuds CVE_UNIFIED", nb_unifies)
 
 
-# ========== Simulation ==========
+# ======================== Simulation ==========================
 elif menu == "Simulation":
 
     import streamlit as st
@@ -494,7 +494,8 @@ elif menu == "Simulation":
     nx.draw_networkx_edge_labels(G_attack, pos, edge_labels=edge_labels)
     st.pyplot(plt.gcf())
     plt.clf()
-        # ======================== 7. 🧨 Analyse de risque simulée ========================
+
+    # ======================== 7. 🧨 Analyse de risque simulée ========================
     st.subheader("🧨 Analyse de Risque Étendue")
 
     if st.button("🧨 Lancer une attaque simulée ciblée"):
@@ -514,6 +515,7 @@ elif menu == "Simulation":
             st.dataframe(df_critical.style.background_gradient(cmap="OrRd"), use_container_width=True)
         else:
             st.info("Aucun service vulnérable détecté dans cette simulation.")
+#===================recommandation==========
 elif menu == "Recommandation":
 
     import streamlit as st
@@ -653,7 +655,7 @@ st.markdown(
 )
 
 
-# ========== Heatmap ==========
+ ========== Heatmap ==========
 #elif menu == "Heatmap":
  #   st.title("🔥 Heatmap des Vulnérabilités")
  #   st.info("Carte de chaleur représentant l’intensité des vulnérabilités par hôte.")
