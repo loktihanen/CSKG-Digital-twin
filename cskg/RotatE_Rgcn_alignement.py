@@ -76,10 +76,8 @@ class RotatEModel(nn.Module):
         t = self.ent(t_idx)
         r_complex = torch.stack([torch.cos(r), torch.sin(r)], dim=-1)
         h_complex = torch.stack([h, torch.zeros_like(h)], dim=-1)
-        h_r = torch.stack([
-            h_complex[..., 0]*r_complex[..., 0] - h_complex[..., 1]*r_complex[..., 1],
-            h_complex[..., 0]*r_complex[..., 1] + h_complex[..., 1]*r_complex[..., 0]
-        ], dim=-1)
+        h_r = torch.stack([h_complex[..., 0]*r_complex[..., 0] - h_complex[..., 1]*r_complex[..., 1],
+                           h_complex[..., 0]*r_complex[..., 1] + h_complex[..., 1]*r_complex[..., 0]], dim=-1)
         t_complex = torch.stack([t, torch.zeros_like(t)], dim=-1)
         score = -torch.norm(h_r - t_complex, dim=-1).sum(dim=-1)
         return score
