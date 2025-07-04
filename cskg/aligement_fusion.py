@@ -18,6 +18,8 @@ except Exception as e:
     print("Erreur de connexion Neo4j :", e)
     exit(1)
 
+
+
 # ======================== 3. ONTOLOGIE RDF EXPORT ========================
 rdf_graph = RDFGraph()
 UCO = Namespace("https://ontology.unifiedcyberontology.org/uco#")
@@ -27,7 +29,6 @@ rdf_graph.bind("uco", UCO)
 rdf_graph.bind("stuco", STUCO)
 rdf_graph.bind("cyber", CYBER)
 
-# Définition des classes et relations
 classes = [
     ("Host", CYBER.Host), ("Port", CYBER.Port), ("Service", CYBER.Service),
     ("OperatingSystem", CYBER.OperatingSystem), ("Plugin", CYBER.Plugin),
@@ -45,13 +46,14 @@ relations = [
     ("SCANNED_BY", CYBER.scanned_by), ("EXPOSES", CYBER.exposes),
     ("RUNS_PLUGIN", CYBER.runs_plugin), ("RECOMMENDED_ACTION", CYBER.recommended_action),
     ("MITIGATED_BY", CYBER.mitigated_by), ("COMMUNICATES_WITH", CYBER.communicates_with),
-    ("BELONGS_TO", CYBER.belongs_to), ("SAME_AS", OWL.sameAs)
+    ("BELONGS_TO", CYBER.belongs_to), ("IMPACTS", CYBER.impacts),  # ✅ AJOUT
+    ("SAME_AS", OWL.sameAs)
 ]
 
-# Ajout des classes et relations à l'ontologie RDF
 for label, uri in classes:
     rdf_graph.add((uri, RDF.type, OWL.Class))
     rdf_graph.add((uri, RDFS.label, Literal(label)))
+
 for label, uri in relations:
     rdf_graph.add((uri, RDF.type, OWL.ObjectProperty))
     rdf_graph.add((uri, RDFS.label, Literal(label)))
@@ -62,7 +64,6 @@ print("✅ Ontologie RDF KG3 exportée : kg3.ttl")
 # ======================== 4. ALIGNEMENT PAR SIMILARITÉ ========================
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Fonction d'alignement des CVE entre les deux graphes
 def align_cve_nodes():
     cve_nvd = list(graph.nodes.match("CVE").where("_.source = 'NVD'"))
     cve_nessus = list(graph.nodes.match("CVE").where("_.source = 'Nessus'"))
@@ -134,11 +135,9 @@ def fuse_cve_same_as():
         for name in [name1, name2]:
             node = graph.nodes.match("CVE", name=name).first()
             if node:
-                # ✅ Copier les propriétés clés si absentes
                 for key in ["cvssScore", "description", "published", "lastModified"]:
                     if key in node and (key not in unified_node or unified_node[key] is None):
                         unified_node[key] = node[key]
-
                 graph.merge(Relationship(unified_node, "SAME_AS", node))
 
         graph.push(unified_node)
@@ -193,6 +192,14 @@ def add_network_segments():
     MERGE (h)-[:BELONGS_TO]->(s)
     """)
 
+def enrich_impacts_relations():
+    graph.run("""
+    MATCH (c:CVE_UNIFIED)<-[:SAME_AS]-(:CVE)
+    MATCH (s:Service)
+    WHERE s.name CONTAINS c.name
+    MERGE (c)-[:IMPACTS]->(s)
+    """)
+
 def debug_invalid_hosts():
     res = graph.run("""
     MATCH (h:Host)
@@ -213,8 +220,10 @@ def main():
     create_network_links()
     recommend_patches()
     add_network_segments()
+    enrich_impacts_relations()  # ✅ appel ajout relation IMPACTS
     debug_invalid_hosts()
     print("✅ Pipeline de fusion CSKG1 + CSKG2 terminé avec enrichissement.")
 
 if __name__ == "__main__":
     main()
+
