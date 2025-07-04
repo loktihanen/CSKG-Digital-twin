@@ -47,7 +47,7 @@ menu = st.sidebar.radio("📌 Menu", [
     "CSKG3 – Fusionné",
     "Simulation",
     "Recommandation",
-  #  "Heatmap"
+    "Heatmap"
 ])
 
 # ========== CSKG1 – NVD =========
@@ -239,11 +239,13 @@ elif menu == "CSKG2 – Nessus":
     # 📄 Table des relations
     st.markdown("### 📄 Relations extraites")
     st.dataframe(df, use_container_width=True)
+
 # ========== CSKG3 – Fusionné ==========
 elif menu == "CSKG3 – Fusionné":
     st.header("🔀 CSKG3 – Graphe fusionné & enrichi")
     st.info("Visualisation du graphe résultant de la fusion entre les CVE issues de la NVD et celles issues des scans Nessus, via des relations SAME_AS vers des nœuds CVE_UNIFIED.")
 
+    # Requête Neo4j pour récupérer les relations et les entités fusionnées
     query = """
     MATCH (a)-[r]->(b)
     WHERE labels(a)[0] IN ['CVE', 'CVE_UNIFIED', 'Plugin', 'Host', 'Service', 'Patch', 'Severity']
@@ -254,15 +256,16 @@ elif menu == "CSKG3 – Fusionné":
     """
     data = graph_db.run(query).data()
 
+    # Construction du graphe
     G = nx.DiGraph()
     color_map = {
-        "CVE": "#ff4d4d",
-        "CVE_UNIFIED": "#ffcc00",
-        "Plugin": "#66ccff",
-        "Host": "#00cc66",
-        "Service": "#ffa500",
-        "Patch": "#aa33ff",
-        "Severity": "#ff9900"
+        "CVE": "#ff4d4d",  # Rouge pour CVE
+        "CVE_UNIFIED": "#ffcc00",  # Jaune pour CVE_UNIFIED
+        "Plugin": "#66ccff",  # Bleu pour Plugin
+        "Host": "#00cc66",  # Vert pour Host
+        "Service": "#ffa500",  # Orange pour Service
+        "Patch": "#aa33ff",  # Violet pour Patch
+        "Severity": "#ff9900"  # Jaune pour Severity
     }
 
     skipped = 0
@@ -281,6 +284,7 @@ elif menu == "CSKG3 – Fusionné":
         G.add_node(tgt, type=tgt_type, label=tgt)
         G.add_edge(src, tgt, label=rel)
 
+    # Récupération des statistiques des relations SAME_AS
     nb_unifies = graph_db.run("""
         MATCH (cveu:CVE_UNIFIED)-[:SAME_AS]->(:CVE)
         RETURN count(DISTINCT cveu) AS nb
@@ -296,6 +300,7 @@ elif menu == "CSKG3 – Fusionné":
         RETURN count(r) AS total
     """).evaluate()
 
+    # Fonction de dessin avec PyVis
     def draw_pyvis_graph(G):
         net = Network(height="700px", width="100%", bgcolor="#222222", font_color="white")
         for node, data in G.nodes(data=True):
@@ -308,6 +313,7 @@ elif menu == "CSKG3 – Fusionné":
         net.save_graph(tmpfile.name)
         return tmpfile.name
 
+    # Visualisation interactive avec PyVis
     st.subheader("🌐 Visualisation interactive (PyVis)")
     with st.spinner("🔄 Génération du graphe..."):
         html_path = draw_pyvis_graph(G)
@@ -315,6 +321,7 @@ elif menu == "CSKG3 – Fusionné":
             html = f.read()
         st.components.v1.html(html, height=700, scrolling=True)
 
+    # Statistiques du graphe CSKG3
     st.markdown("### 📈 Statistiques du graphe CSKG3")
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -326,6 +333,7 @@ elif menu == "CSKG3 – Fusionné":
 
     st.caption(f"⚠️ Lignes ignorées (valeurs nulles) : {skipped}")
 
+    # Alignement & Fusion via CVE_UNIFIED
     st.markdown("### 🧬 Alignement & Fusion via CVE_UNIFIED")
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -361,8 +369,9 @@ elif menu == "Simulation":
     graph = Graph(uri, auth=(user, password))
     matcher = NodeMatcher(graph)
 
+    # Requête pour extraire les relations d'impact entre hôtes et services (selon NVD/Nessus)
     query = """
-    MATCH (h)-[r:IMPACTS]->(s)
+    MATCH (h:Host)-[r:IMPACTS]->(s:Service)
     WHERE h.name IS NOT NULL AND s.name IS NOT NULL
     RETURN h.name AS host, type(r) AS relation, s.name AS service, r.weight AS weight
     """
@@ -407,6 +416,8 @@ elif menu == "Simulation":
     # ======================== 4. 🌐 Vue interactive PyVis ========================
     st.subheader("🌐 Visualisation interactive Host → Service")
     G_nx = nx.DiGraph()
+
+    # Construction du graphe à partir des impacts extraits
     for _, row in df_impacts.iterrows():
         host = row['host']
         service = row['service']
@@ -515,7 +526,8 @@ elif menu == "Simulation":
             st.dataframe(df_critical.style.background_gradient(cmap="OrRd"), use_container_width=True)
         else:
             st.info("Aucun service vulnérable détecté dans cette simulation.")
-#===================recommandation==========
+
+# ======================= Recommandation ========================
 elif menu == "Recommandation":
 
     import streamlit as st
@@ -539,12 +551,13 @@ elif menu == "Recommandation":
 
     st.write("⏳ Extraction des relations `IS_VULNERABLE_TO` depuis Neo4j...")
 
+    # Requête adaptée pour extraire les relations IS_VULNERABLE_TO
     query = """
     MATCH (asset)-[r:IS_VULNERABLE_TO]->(cve)
     WHERE asset.name IS NOT NULL AND cve.name IS NOT NULL
     RETURN asset.name AS asset, cve.name AS cve
     """
-
+    
     try:
         records = graph.run(query).data()
     except Exception as e:
@@ -592,6 +605,7 @@ elif menu == "Recommandation":
     st.subheader("✅ Vulnérabilités identifiées après inférence")
     st.dataframe(df_vuln)
 
+    # Enrichissement des CVE via API NVD
     @st.cache_data(show_spinner=False)
     def enrich_cve(cve_id):
         try:
@@ -610,10 +624,13 @@ elif menu == "Recommandation":
     st.subheader("📝 Détails NVD")
     st.dataframe(df[["CVE", "cvss"]])
 
+    # Utilisation du modèle ATT&CK pour associer des techniques
     at = Attck()
 
     def map_attack(cve_id):
-        return ["T1078", "T1059"]  # Exemples simplifiés
+        # Exemple de mapping simplifié ATT&CK pour CVEs
+        # Utilisez des mappages réels pour des techniques ATT&CK spécifiques à chaque CVE
+        return ["T1078", "T1059"]  # Exemple simplifié de techniques
 
     df["MITRE"] = df["CVE"].apply(map_attack)
     st.subheader("🛡️ Techniques ATT&CK associées")
@@ -655,18 +672,64 @@ st.markdown(
 )
 
 
- ========== Heatmap ==========
-#elif menu == "Heatmap":
- #   st.title("🔥 Heatmap des Vulnérabilités")
- #   st.info("Carte de chaleur représentant l’intensité des vulnérabilités par hôte.")
+# ========== Heatmap ==========
+elif menu == "Heatmap":
+    st.title("🔥 Heatmap des Vulnérabilités")
+    st.info("Carte de chaleur représentant l’intensité des vulnérabilités par hôte.")
 
-    # Données simulées
-  #  data = np.random.rand(5, 5)
-  #  hosts = [f"host-{i}" for i in range(1, 6)]
-  #  vulns = [f"CVE-{2024+i}-000{i}" for i in range(5)]
-  #  df = pd.DataFrame(data, index=hosts, columns=vulns)
+    # Connexion à Neo4j Aura
+    uri = "neo4j+s://8d5fbce8.databases.neo4j.io"
+    user = "neo4j"
+    password = "VpzGP3RDVB7AtQ1vfrQljYUgxw4VBzy0tUItWeRB9CM"
+    graph = Graph(uri, auth=(user, password))
 
-    # Affichage heatmap
-    #fig, ax = plt.subplots(figsize=(8, 4))
-   # sns.heatmap(df, annot=True, cmap="Reds", cbar=True)
-    #st.pyplot(fig)
+    # Requête pour obtenir les relations IS_VULNERABLE_TO avec les scores CVSS
+    query = """
+    MATCH (host:Host)-[r:VULNERABLE_TO]->(cve:CVE)
+    WHERE host.name IS NOT NULL AND cve.cvssScore IS NOT NULL
+    RETURN host.name AS host, cve.name AS cve, cve.cvssScore AS score
+    """
+    
+    # Récupérer les données des relations vulnérabilités et scores CVSS
+    try:
+        records = graph.run(query).data()
+    except Exception as e:
+        st.error(f"Erreur Neo4j : {e}")
+        st.stop()
+
+    if not records:
+        st.warning("Aucune relation `VULNERABLE_TO` avec des scores CVSS trouvée dans la base Neo4j.")
+        st.stop()
+
+    # Préparation des données pour la heatmap
+    hosts = sorted(set([rec["host"] for rec in records]))
+    cves = sorted(set([rec["cve"] for rec in records]))
+
+    # Initialisation du DataFrame des scores CVSS
+    data = np.zeros((len(hosts), len(cves)))
+
+    # Mapping des hôtes et CVEs à leurs indices dans le DataFrame
+    host_index = {host: idx for idx, host in enumerate(hosts)}
+    cve_index = {cve: idx for idx, cve in enumerate(cves)}
+
+    # Remplir le DataFrame avec les scores CVSS
+    for rec in records:
+        host_idx = host_index[rec["host"]]
+        cve_idx = cve_index[rec["cve"]]
+        data[host_idx, cve_idx] = rec["score"]
+
+    # Convertir en DataFrame pandas
+    df = pd.DataFrame(data, index=hosts, columns=cves)
+
+    # Affichage de la heatmap avec seaborn
+    st.subheader("📊 Carte de chaleur des vulnérabilités")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.heatmap(df, annot=True, cmap="Reds", cbar=True, fmt=".2f", ax=ax)
+    st.pyplot(fig)
+
+    # Statistiques de la heatmap
+    st.markdown("### 📊 Statistiques de la carte de chaleur")
+    st.markdown(f"- **Hôtes** : {df.shape[0]}")
+    st.markdown(f"- **Vulnérabilités (CVE)** : {df.shape[1]}")
+    st.markdown(f"- **Score CVSS moyen** : {df.mean().mean():.2f}")
+
