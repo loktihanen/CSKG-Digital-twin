@@ -363,9 +363,9 @@ elif menu == "Simulation":
     st.info("Ce module regroupe raisonnement OWL, analyse de risques, simulation What-If et visualisation interactive.")
 
     # ======================== 1. 🔄 Extraction Neo4j ========================
-    uri = "neo4j+s://8d5fbce8.databases.neo4j.io"
+    uri = "neo4j+s://1cb37128.databases.neo4j.io"
     user = "neo4j"
-    password = "VpzGP3RDVB7AtQ1vfrQljYUgxw4VBzy0tUItWeRB9CM"
+    password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
     graph = Graph(uri, auth=(user, password))
     matcher = NodeMatcher(graph)
 
@@ -544,9 +544,9 @@ elif menu == "Recommandation":
     st.info("Extraction depuis Neo4j + inférence OWL automatique + enrichissement NVD, mapping ATT&CK et recommandations NLP.")
 
     # Connexion Neo4j Aura
-    uri = "neo4j+s://8d5fbce8.databases.neo4j.io"
+    uri = "neo4j+s://1cb37128.databases.neo4j.io"
     user = "neo4j"
-    password = "VpzGP3RDVB7AtQ1vfrQljYUgxw4VBzy0tUItWeRB9CM"
+    password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
     graph = Graph(uri, auth=(user, password))
 
     st.write("⏳ Extraction des relations `IS_VULNERABLE_TO` depuis Neo4j...")
@@ -678,9 +678,9 @@ elif menu == "Heatmap":
     st.info("Carte de chaleur représentant l’intensité des vulnérabilités par hôte.")
 
     # Connexion à Neo4j Aura
-    uri = "neo4j+s://8d5fbce8.databases.neo4j.io"
+    uri = "neo4j+s://1cb37128.databases.neo4j.io"
     user = "neo4j"
-    password = "VpzGP3RDVB7AtQ1vfrQljYUgxw4VBzy0tUItWeRB9CM"
+    password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
     graph = Graph(uri, auth=(user, password))
 
     # Requête pour obtenir les relations IS_VULNERABLE_TO avec les scores CVSS
