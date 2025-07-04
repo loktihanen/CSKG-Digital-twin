@@ -18,9 +18,7 @@ from pyattck import Attck
 from transformers import pipeline
 from rdflib import Graph as RDFGraph, Namespace
 from rdflib.plugins.sparql import prepareQuery
-=========================
 
-=====================
 @st.cache_resource
 def connect_neo4j():
     try:
