@@ -62,16 +62,17 @@ jobs:
       #- name: Run digital_twin_update
        # run: python cskg/digital_twin_update.py
 
-      #- name: Run CSKG1_NVD 
-       # run: python cskg/CSKG1_NVD.py
+      - name: Run CSKG1_NVD 
+        run: python cskg/CSKG1_NVD.py
 
-      #- name: Run CSKG2_Nessus 
-       # run: python cskg/CSKG2_Nessus.py
+      - name: Run CSKG2_Nessus 
+        run: python cskg/CSKG2_Nessus.py
         
       #- name: Run CSKG1 (NVD) local
        # run: python cskg/cskg1NVD_Neo4jDESktop.py
-      - name: Run CSKG1 (NVD)
-        run: python cskg/CVElist.py
+      #- name: Run CSKG1 (NVD)
+      #  run: python cskg/CVElist.py
+      
       #- name: Run CSKG1 (NVD)
        # run: python cskg/cskg1NVD.py
       #- name: Run KG1 (NVD)
@@ -81,7 +82,13 @@ jobs:
        # run: python cskg/inject_nessus.py
 
       - name: Run Alignment & Fusion
-        run: python cskg/align_and_merge.py
+        run: python cskg/aligement_fusion.py
+
+      - name: Run Alignment_Fusion
+        run: python cskg/Alignemnt_RLVersion3.py
+
+      - name: Run Alignment_Fusion
+        run: python cskg/Alignemnt_RLVersion3.py
      
       - name: Run Evaluation
         run: python cskg/evaluate_alignment.py
