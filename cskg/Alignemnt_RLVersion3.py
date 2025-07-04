@@ -164,8 +164,14 @@ rl_model.learn(total_timesteps=1000)
 G = nx.DiGraph()
 for _, row in triplets_df.iterrows():
     G.add_edge(row['head'], row['tail'], label=row['relation'])
+#plt.figure(figsize=(10, 10))
+#nx.draw(G, with_labels=True, node_size=2000, node_color='lightblue', font_size=8)
+#plt.title("Knowledge Graph CSKG")
+#plt.show()
+
 plt.figure(figsize=(10, 10))
 nx.draw(G, with_labels=True, node_size=2000, node_color='lightblue', font_size=8)
 plt.title("Knowledge Graph CSKG")
-plt.show()
+plt.savefig("graph_cskg.png")  # ✅ Enregistre le graphe
+# plt.show()  # ❌ Ne rien afficher
 
