@@ -228,3 +228,11 @@ def evaluate_ranking(model, h_idx, r_idx, t_idx, entity2id, top_k=10):
 
 evaluate_ranking(rotate, h_idx, r_idx, t_idx, entity2id)
 
+# === Sauvegarde des scores propagés ===
+import pickle
+with open("propagated_scores.pkl", "wb") as f:
+    pickle.dump(propagated_scores, f)
+
+# === Sauvegarde des métriques (optionnel) ===
+with open("metrics.txt", "w") as f:
+    f.write(f"[EVAL] Mean Rank: {mean_rank:.2f} | Hits@{top_k}: {hits:.2f}\n")
