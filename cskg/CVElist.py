@@ -89,6 +89,15 @@ def fetch_cve_nvd(start=0, results_per_page=20):
 # ======================== 8. INSERTION ENRICHIE ========================
 def insert_cve_neo4j(item):
     cve_id = item["cve"]["id"]
+    try:
+        year = int(cve_id.split("-")[1])
+    except Exception:
+        print(f"⚠️ Année invalide pour {cve_id}, passage")
+        return
+
+    # Filtrer sur année entre 2015 et 2016
+    if year < 2015 or year > 2016:
+        return
     if cve_id not in target_cves:
         return
 
