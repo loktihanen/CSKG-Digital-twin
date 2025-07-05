@@ -83,12 +83,15 @@ jobs:
 
       - name: Install PyTorch and PyTorch Geometric (CPU-safe versions)
         run: |
-          pip install torch==2.0.1+cpu torchvision==0.15.2+cpu torchaudio==2.0.2+cpu --index-url https://download.pytorch.org/whl/torch
+          pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2
           pip install torch-scatter -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
           pip install torch-sparse -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
           pip install torch-cluster -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
           pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
           pip install torch-geometric
+      - name: Check torch version
+        run:  python -c "import torch; print('Torch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
+
 
       - name: Install dependencies
         run: |
