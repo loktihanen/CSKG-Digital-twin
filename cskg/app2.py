@@ -11,6 +11,11 @@ import numpy as np
 from py2neo import Graph
 import tempfile  # ✅ import requis pour NamedTemporaryFile
 import os 
+
+from PIL import Image
+import torch
+import base64
+import pickle
 # ======================== 📦 INSTALL ========================
 import os
 os.system("pip install nvdlib pyattck transformers --quiet")
@@ -47,7 +52,11 @@ menu = st.sidebar.radio("📌 Menu", [
     "CSKG3 – Fusionné",
     "Simulation",
     "Recommandation",
-    "Heatmap"
+    "Heatmap",
+    "Graphes CSKG",
+    "Prédictions SVM / R-GCN",
+    "Propagation des Vulnérabilités",
+    "Évaluation RotatE"
 ])
 
 # ========== CSKG1 – NVD =========
@@ -720,6 +729,69 @@ elif menu == "Heatmap":
     st.markdown(f"- **Hôtes** : {df.shape[0]}")
     st.markdown(f"- **Vulnérabilités (CVE)** : {df.shape[1]}")
     st.markdown(f"- **Score CVSS moyen** : {df.mean().mean():.2f}")
+
+
+
+
+
+
+
+
+
+
+# === Pages ===
+
+
+elif menu == "Graphes CSKG":
+    st.subheader("📌 Graphe initial")
+    try:
+        img1 = Image.open("graph_cskg.png")
+        st.image(img1, caption="Graphe original CSKG")
+    except FileNotFoundError:
+        st.error("graph_cskg.png non trouvé")
+
+    st.subheader("🔥 Propagation des vulnérabilités")
+    try:
+        img2 = Image.open("graph_cskg_propagation.png")
+        st.image(img2, caption="Propagation (rouge = vulnérabilité transmise)")
+    except FileNotFoundError:
+        st.error("graph_cskg_propagation.png non trouvé")
+
+elif menu == "Prédictions SVM / R-GCN":
+    st.subheader("📊 Résultats SVM")
+    try:
+        svm_df = pd.read_csv("predictions_svm.csv")
+        st.dataframe(svm_df.head(10))
+    except FileNotFoundError:
+        st.warning("Fichier `predictions_svm.csv` manquant.")
+
+elif menu == "Propagation des Vulnérabilités":
+    st.subheader("🔬 Top entités vulnérables propagées")
+    try:
+        with open("propagated_scores.pkl", "rb") as f:
+            propagated_scores = pickle.load(f)
+        top_nodes = sorted(propagated_scores.items(), key=lambda x: x[1], reverse=True)
+        df_top = pd.DataFrame(top_nodes, columns=["Node", "Score"])
+        st.dataframe(df_top.head(20))
+    except FileNotFoundError:
+        st.warning("Fichier `propagated_scores.pkl` manquant.")
+
+elif menu == "Évaluation RotatE":
+    st.subheader("📈 Évaluation du modèle RotatE")
+    try:
+        with open("metrics.txt", "r") as f:
+            lines = f.read().splitlines()
+        for line in lines:
+            st.text(line)
+    except FileNotFoundError:
+        st.warning("Fichier `metrics.txt` manquant.")
+
+
+
+
+
+
+
 
 
 st.markdown("---")
