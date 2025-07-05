@@ -29,7 +29,7 @@ RETURN h.name AS head, type(r) AS relation, t.name AS tail
 """
 triplets_df = pd.DataFrame(graph.run(query).data())
 print(triplets_df.head())
-
+"""
 # === ALIGNEMENT PAR FUZZY MATCHING ===
 from fuzzywuzzy import fuzz
 
@@ -78,63 +78,63 @@ t_idx = torch.tensor([entity2id[t] for t in triplets_df["tail"]])
 
 rotate = RotatEModel(len(entity2id), len(rel2id))
 opt = torch.optim.Adam(rotate.parameters(), lr=0.01)
-
-for epoch in range(50):
-    rotate.train()
-    opt.zero_grad()
-    loss = -rotate(h_idx, r_idx, t_idx).mean()
-    loss.backward()
-    opt.step()
-    if epoch % 10 == 0:
-        print(f"[RotatE] Epoch {epoch} - Loss: {loss.item():.4f}")
+"""
+#for epoch in range(50):
+  #  rotate.train()
+ #   opt.zero_grad()
+ #   loss = -rotate(h_idx, r_idx, t_idx).mean()
+  #  loss.backward()
+  #  opt.step()
+ #   if epoch % 10 == 0:
+    #    print(f"[RotatE] Epoch {epoch} - Loss: {loss.item():.4f}")
 
 # === GRAPHE POUR R-GCN ===
-x = torch.randn(len(entity2id), 64)
-edge_index = torch.tensor([
-    [entity2id[h] for h in triplets_df["head"]],
-    [entity2id[t] for t in triplets_df["tail"]]
-], dtype=torch.long)
-edge_type = torch.tensor([rel2id[r] for r in triplets_df["relation"]], dtype=torch.long)
+#x = torch.randn(len(entity2id), 64)
+#edge_index = torch.tensor([
+  #  [entity2id[h] for h in triplets_df["head"]],
+ #   [entity2id[t] for t in triplets_df["tail"]]
+#], dtype=torch.long)
+#edge_type = torch.tensor([rel2id[r] for r in triplets_df["relation"]], dtype=torch.long)
 
-data = Data(x=x, edge_index=edge_index, edge_type=edge_type, num_nodes=len(entity2id))
-data.y = torch.randint(0, 2, (len(entity2id),))
-train_mask = torch.rand(len(entity2id)) > 0.3
+#data = Data(x=x, edge_index=edge_index, edge_type=edge_type, num_nodes=len(entity2id))
+#data.y = torch.randint(0, 2, (len(entity2id),))
+#train_mask = torch.rand(len(entity2id)) > 0.3
 
-# === R-GCN ===
-class RGCN(nn.Module):
-    def __init__(self, in_feat, hidden_feat, out_feat, num_rels):
-        super().__init__()
-        self.conv1 = RGCNConv(in_feat, hidden_feat, num_rels)
-        self.conv2 = RGCNConv(hidden_feat, out_feat, num_rels)
+## === R-GCN ===
+#class RGCN(nn.Module):
+  #  def __init__(self, in_feat, hidden_feat, out_feat, num_rels):
+      #  super().__init__()
+       # self.conv1 = RGCNConv(in_feat, hidden_feat, num_rels)
+     #   self.conv2 = RGCNConv(hidden_feat, out_feat, num_rels)
 
-    def forward(self, data):
-        x = F.relu(self.conv1(data.x, data.edge_index, data.edge_type))
-        return self.conv2(x, data.edge_index, data.edge_type)
+   # def forward(self, data):
+      #  x = F.relu(self.conv1(data.x, data.edge_index, data.edge_type))
+      #  return self.conv2(x, data.edge_index, data.edge_type)
 
-rgcn = RGCN(64, 32, 2, len(rel2id))
-opt_rgcn = torch.optim.Adam(rgcn.parameters(), lr=0.01)
+#rgcn = RGCN(64, 32, 2, len(rel2id))
+#opt_rgcn = torch.optim.Adam(rgcn.parameters(), lr=0.01)
 
-for epoch in range(50):
-    rgcn.train()
-    opt_rgcn.zero_grad()
-    out = rgcn(data)
-    loss = F.cross_entropy(out[train_mask], data.y[train_mask])
-    loss.backward()
-    opt_rgcn.step()
-    print(f"[R-GCN] Epoch {epoch} - Loss: {loss.item():.4f}")
+#for epoch in range(50):
+    #rgcn.train()
+    #opt_rgcn.zero_grad()
+  #  out = rgcn(data)
+   # loss = F.cross_entropy(out[train_mask], data.y[train_mask])
+  #  loss.backward()
+  #  opt_rgcn.step()
+  #  print(f"[R-GCN] Epoch {epoch} - Loss: {loss.item():.4f}")
 
 # === INJECTION NEO4J ===
-def inject_vulnerable_property(entity2id, out, threshold=0.5):
-    for entity, idx in entity2id.items():
-        prob = torch.softmax(out[idx], dim=0)[1].item()
-        node = matcher.match(name=entity).first()
-        if node:
-            node["vulnerable"] = prob > threshold
-            graph.push(node)
+#def inject_vulnerable_property(entity2id, out, threshold=0.5):
+  #  for entity, idx in entity2id.items():
+   #     prob = torch.softmax(out[idx], dim=0)[1].item()
+    #    node = matcher.match(name=entity).first()
+     #   if node:
+     #       node["vulnerable"] = prob > threshold
+       #     graph.push(node)
 
-rgcn.eval()
-with torch.no_grad():
-    inject_vulnerable_property(entity2id, rgcn(data))
+#rgcn.eval()
+#with torch.no_grad():
+#    inject_vulnerable_property(entity2id, rgcn(data))
 
 # === SVM ===
 # Simulation de X_train/y_train depuis les embeddings du modèle R-GCN
