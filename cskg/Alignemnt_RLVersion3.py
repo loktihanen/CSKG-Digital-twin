@@ -175,4 +175,56 @@ nx.draw(G, with_labels=True, node_size=2000, node_color='lightblue', font_size=8
 plt.title("Knowledge Graph CSKG")
 plt.savefig("graph_cskg.png")  # ✅ Enregistre le graphe
 # plt.show()  # ❌ Ne rien afficher
+# === SIMULATION DE PROPAGATION ===
+def simulate_vulnerability_propagation(G, entity2id, predictions, threshold=0.5, decay=0.6, steps=2):
+    scores = {entity: torch.softmax(predictions[idx], dim=0)[1].item() for entity, idx in entity2id.items()}
+    for _ in range(steps):
+        new_scores = scores.copy()
+        for src in G.nodes:
+            if scores[src] > threshold:
+                for dst in G.successors(src):
+                    propagated = scores[src] * decay
+                    new_scores[dst] = max(new_scores.get(dst, 0), propagated)
+        scores = new_scores
+    return scores
+
+rgcn.eval()
+with torch.no_grad():
+    raw_out = rgcn(data)
+    propagated_scores = simulate_vulnerability_propagation(G, entity2id, raw_out)
+
+# Coloration selon vulnérabilité propagée
+node_colors = ['red' if propagated_scores[node] > 0.5 else 'green' for node in G.nodes]
+plt.figure(figsize=(10, 10))
+nx.draw(G, with_labels=True, node_size=2000, node_color=node_colors, font_size=8)
+plt.title("Propagation de la Vulnérabilité (rouge = propagé)")
+plt.savefig("graph_cskg_propagation.png")
+# === ÉVALUATION METRIQUES (Mean Rank, Hits@K) ===
+def evaluate_ranking(model, h_idx, r_idx, t_idx, entity2id, top_k=10):
+    ranks = []
+    hits_at_k = 0
+
+    for i in range(len(h_idx)):
+        h = h_idx[i].unsqueeze(0)
+        r = r_idx[i].unsqueeze(0)
+        scores = []
+
+        for candidate_t in range(len(entity2id)):
+            t = torch.tensor([candidate_t])
+            score = model(h, r, t).item()
+            scores.append((candidate_t, score))
+
+        scores.sort(key=lambda x: x[1])  # tri croissant (RotatE)
+        true_tail = t_idx[i].item()
+        rank = [x[0] for x in scores].index(true_tail) + 1
+        ranks.append(rank)
+
+        if rank <= top_k:
+            hits_at_k += 1
+
+    mean_rank = sum(ranks) / len(ranks)
+    hits = hits_at_k / len(ranks)
+    print(f"[EVAL] Mean Rank: {mean_rank:.2f} | Hits@{top_k}: {hits:.2f}")
+
+evaluate_ranking(rotate, h_idx, r_idx, t_idx, entity2id)
 
