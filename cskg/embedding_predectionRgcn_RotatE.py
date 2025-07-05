@@ -149,15 +149,71 @@ def inject_vulnerable_property(entity2id, rgcn_out, threshold=0.5):
             node["vulnerable"] = vulnerable
             graph.push(node)
             print(f"🛡️ Noeud {entity} : vulnérable = {vulnerable}")
+def evaluate_rotate_model(model, h_idx, r_idx, t_idx, entity2id, rel2id, k_list=[1, 3, 10]):
+    model.eval()
+    num_entities = len(entity2id)
+    
+    ranks = []
+    hits = {k: 0 for k in k_list}
+    
+    with torch.no_grad():
+        for h, r, true_t in zip(h_idx, r_idx, t_idx):
+            h_embed = h.repeat(num_entities)
+            r_embed = r.repeat(num_entities)
+            candidates = torch.arange(num_entities)
+
+            scores = model(h_embed, r_embed, candidates)
+            _, indices = torch.sort(scores, descending=True)
+            rank = (indices == true_t).nonzero(as_tuple=True)[0].item() + 1  # 1-based
+            
+            ranks.append(rank)
+            for k in k_list:
+                if rank <= k:
+                    hits[k] += 1
+    
+    mean_rank = sum(ranks) / len(ranks)
+    mrr = sum(1.0 / rank for rank in ranks) / len(ranks)
+    
+    print("\n📊 Évaluation RotatE:")
+    print(f"Mean Rank (MR): {mean_rank:.2f}")
+    print(f"Mean Reciprocal Rank (MRR): {mrr:.4f}")
+    for k in k_list:
+        print(f"Hits@{k}: {hits[k] / len(ranks):.2%}")
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+
+def evaluate_rgcn_model(model, data, mask=None):
+    model.eval()
+    with torch.no_grad():
+        out = model(data)
+        pred = out.argmax(dim=1)
+        y_true = data.y
+        y_pred = pred
+
+        if mask is not None:
+            y_true = y_true[mask]
+            y_pred = y_pred[mask]
+
+        acc = accuracy_score(y_true.cpu(), y_pred.cpu())
+        precision, recall, f1, _ = precision_recall_fscore_support(
+            y_true.cpu(), y_pred.cpu(), average="binary", zero_division=0
+        )
+
+        print("\n📊 Évaluation R-GCN:")
+        print(f"Accuracy: {acc:.2%}")
+        print(f"Precision: {precision:.2%}")
+        print(f"Recall: {recall:.2%}")
+        print(f"F1-score: {f1:.2%}")
 
 # --- Pipeline principal
 if __name__ == "__main__":
     print("\n▶️ Injection relations at_risk_of (RotatE)...")
     inject_at_risk_of(triplets_pred, entity2id, rel2id, rotate_model)
+    evaluate_rotate_model(rotate_model, h_idx, r_idx, t_idx, entity2id, rel2id)
 
     print("\n▶️ Injection propriétés vulnérables (R-GCN)...")
     rgcn.eval()
     with torch.no_grad():
         out = rgcn(data)
     inject_vulnerable_property(entity2id, out)
+    evaluate_rgcn_model(rgcn, data, mask=train_mask)
 
