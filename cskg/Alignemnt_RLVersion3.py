@@ -79,7 +79,7 @@ t_idx = torch.tensor([entity2id[t] for t in triplets_df["tail"]])
 rotate = RotatEModel(len(entity2id), len(rel2id))
 opt = torch.optim.Adam(rotate.parameters(), lr=0.01)
 
-for epoch in range(50):
+for epoch in range(3):
     rotate.train()
     opt.zero_grad()
     loss = -rotate(h_idx, r_idx, t_idx).mean()
@@ -114,7 +114,7 @@ class RGCN(nn.Module):
 rgcn = RGCN(64, 32, 2, len(rel2id))
 opt_rgcn = torch.optim.Adam(rgcn.parameters(), lr=0.01)
 
-for epoch in range(50):
+for epoch in range(2):
     rgcn.train()
     opt_rgcn.zero_grad()
     out = rgcn(data)
