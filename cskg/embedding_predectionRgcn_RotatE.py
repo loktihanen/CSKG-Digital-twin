@@ -5,114 +5,125 @@ import pandas as pd
 from torch_geometric.data import Data
 from torch_geometric.nn import RGCNConv
 from py2neo import Graph, NodeMatcher, Relationship
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+
+# --- Device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"🖥️ Utilisation du device : {device}")
 
 # --- Connexion à Neo4j
 uri = "neo4j+s://1cb37128.databases.neo4j.io"
 user = "neo4j"
 password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
 graph = Graph(uri, auth=(user, password))
+matcher = NodeMatcher(graph)
 
-try:
-    info = graph.run("RETURN 1").data()
-    print("Connexion Neo4j réussie :", info)
-except Exception as e:
-    print("Erreur de connexion Neo4j :", e)
-    exit(1)
-# --- Étape 1 : Extraction des triplets depuis Neo4j
+# --- Extraction des triplets
 query = """
 MATCH (h)-[r]->(t)
 WHERE h.name IS NOT NULL AND t.name IS NOT NULL
 RETURN h.name AS head, type(r) AS relation, t.name AS tail
 """
-results = graph.run(query).data()
-triplets_df = pd.DataFrame(results)
-
-# Vérification
+triplets_df = pd.DataFrame(graph.run(query).data())
 if triplets_df.empty:
-    raise ValueError("Aucun triplet récupéré depuis Neo4j. Vérifiez votre base.")
+    raise ValueError("Aucun triplet trouvé.")
+print(f"✅ {len(triplets_df)} triplets récupérés")
 
-print(f"✅ {len(triplets_df)} triplets récupérés depuis Neo4j")
-
-# --- Étape 2 : Mapping entités et relations
+# --- Mapping entités/relations
 entities = pd.Series(pd.concat([triplets_df["head"], triplets_df["tail"]]).unique()).reset_index()
 entity2id = dict(zip(entities[0], entities["index"]))
 relations = pd.Series(triplets_df["relation"].unique()).reset_index()
 rel2id = dict(zip(relations[0], relations["index"]))
 
-h_idx = torch.tensor([entity2id[h] for h in triplets_df["head"]])
-r_idx = torch.tensor([rel2id[r] for r in triplets_df["relation"]])
-t_idx = torch.tensor([entity2id[t] for t in triplets_df["tail"]])
+h_idx = torch.tensor([entity2id[h] for h in triplets_df["head"]], dtype=torch.long).to(device)
+r_idx = torch.tensor([rel2id[r] for r in triplets_df["relation"]], dtype=torch.long).to(device)
+t_idx = torch.tensor([entity2id[t] for t in triplets_df["tail"]], dtype=torch.long).to(device)
 
-# --- Étape 3 : Modèle RotatE
+# --- Split train/test
+indices = list(range(len(h_idx)))
+train_idx, test_idx = train_test_split(indices, test_size=0.2, random_state=42)
+h_train, r_train, t_train = h_idx[train_idx], r_idx[train_idx], t_idx[train_idx]
+h_test, r_test, t_test = h_idx[test_idx], r_idx[test_idx], t_idx[test_idx]
+
+# --- Modèle RotatE
 class RotatEModel(nn.Module):
     def __init__(self, num_entities, num_relations, embedding_dim=64):
         super().__init__()
         self.ent = nn.Embedding(num_entities, embedding_dim)
         self.rel = nn.Embedding(num_relations, embedding_dim)
 
-    def forward(self, h_idx, r_idx, t_idx):
+    def forward(self, h, r, t):
         pi = 3.141592653589793
-        h = self.ent(h_idx)
-        r = self.rel(r_idx) * pi
-        t = self.ent(t_idx)
-        r_complex = torch.stack([torch.cos(r), torch.sin(r)], dim=-1)
-        h_complex = torch.stack([h, torch.zeros_like(h)], dim=-1)
-        h_r = torch.stack([h_complex[..., 0]*r_complex[..., 0] - h_complex[..., 1]*r_complex[..., 1],
-                           h_complex[..., 0]*r_complex[..., 1] + h_complex[..., 1]*r_complex[..., 0]], dim=-1)
-        t_complex = torch.stack([t, torch.zeros_like(t)], dim=-1)
+        h_e = self.ent(h)
+        r_e = self.rel(r) * pi
+        t_e = self.ent(t)
+        r_complex = torch.stack([torch.cos(r_e), torch.sin(r_e)], dim=-1)
+        h_complex = torch.stack([h_e, torch.zeros_like(h_e)], dim=-1)
+        h_r = torch.stack([
+            h_complex[..., 0]*r_complex[..., 0] - h_complex[..., 1]*r_complex[..., 1],
+            h_complex[..., 0]*r_complex[..., 1] + h_complex[..., 1]*r_complex[..., 0]
+        ], dim=-1)
+        t_complex = torch.stack([t_e, torch.zeros_like(t_e)], dim=-1)
         score = -torch.norm(h_r - t_complex, dim=-1).sum(dim=-1)
         return score
 
-rotate_model = RotatEModel(len(entity2id), len(rel2id), embedding_dim=64)
+rotate_model = RotatEModel(len(entity2id), len(rel2id), embedding_dim=64).to(device)
 optimizer_rotate = torch.optim.Adam(rotate_model.parameters(), lr=0.01)
 
+# --- Entraînement RotatE
 print("🛠️ Entraînement RotatE...")
 for epoch in range(100):
     rotate_model.train()
     optimizer_rotate.zero_grad()
-    loss = -torch.mean(rotate_model(h_idx, r_idx, t_idx))
+    loss = -torch.mean(rotate_model(h_train, r_train, t_train))
     loss.backward()
     optimizer_rotate.step()
-    if epoch % 10 == 0 or epoch == 2:
+    if epoch % 10 == 0:
         print(f"[RotatE] Epoch {epoch} - Loss: {loss.item():.4f}")
 
-# --- Étape 4 : Prédiction avec RotatE
-triplets_pred = [("host-001", "at_risk_of", "CVE-2024-99999")]
-matcher = NodeMatcher(graph)
+# --- Évaluation RotatE
+def evaluate_rotate_model(model, h_idx, r_idx, t_idx, num_entities, k_list=[1, 3, 10]):
+    model.eval()
+    ranks = []
+    hits = {k: 0 for k in k_list}
 
-def inject_at_risk_of(predictions, entity2id, rel2id, model, threshold=0.0):
-    rel_name = "at_risk_of"
-    for h, r, t in predictions:
-        if h not in entity2id or r not in rel2id or t not in entity2id:
-            print(f"⚠️ Entité ou relation inconnue : {h}, {r}, {t}")
-            continue
-        score = model(
-            torch.tensor([entity2id[h]]),
-            torch.tensor([rel2id[r]]),
-            torch.tensor([entity2id[t]]),
-        ).item()
-        print(f"Score({h}, {r}, {t}) = {score:.4f}")
-        if score > threshold:
-            node_h = matcher.match(name=h).first()
-            node_t = matcher.match(name=t).first()
-            if node_h and node_t:
-                rel = Relationship(node_h, rel_name, node_t)
-                graph.merge(rel)
-                print(f"✅ Relation ({h})-[:{rel_name}]->({t}) injectée (score {score:.4f})")
+    with torch.no_grad():
+        for h, r, true_t in zip(h_idx, r_idx, t_idx):
+            candidates = torch.arange(num_entities).to(device)
+            h_batch = h.expand(num_entities)
+            r_batch = r.expand(num_entities)
 
-# --- Étape 5 : Préparation pour R-GCN
-x = torch.randn(len(entity2id), 64)
-edge_index = torch.tensor([ 
+            scores = model(h_batch, r_batch, candidates)
+            _, indices = torch.sort(scores, descending=True)
+            rank = (indices == true_t).nonzero(as_tuple=True)[0].item() + 1
+            ranks.append(rank)
+            for k in k_list:
+                if rank <= k:
+                    hits[k] += 1
+
+    mr = sum(ranks) / len(ranks)
+    mrr = sum(1.0 / r for r in ranks) / len(ranks)
+    print("\n📊 Évaluation RotatE:")
+    print(f"Mean Rank (MR): {mr:.2f}")
+    print(f"Mean Reciprocal Rank (MRR): {mrr:.4f}")
+    for k in k_list:
+        print(f"Hits@{k}: {hits[k]/len(ranks):.2%}")
+
+evaluate_rotate_model(rotate_model, h_test, r_test, t_test, len(entity2id))
+
+# --- Données pour R-GCN
+x = torch.randn(len(entity2id), 64).to(device)
+edge_index = torch.tensor([
     [entity2id[h] for h in triplets_df["head"]],
     [entity2id[t] for t in triplets_df["tail"]]
-], dtype=torch.long)
-edge_type = torch.tensor([rel2id[r] for r in triplets_df["relation"]], dtype=torch.long)
+], dtype=torch.long).to(device)
+edge_type = torch.tensor([rel2id[r] for r in triplets_df["relation"]], dtype=torch.long).to(device)
+data = Data(x=x, edge_index=edge_index, edge_type=edge_type, num_nodes=len(entity2id)).to(device)
+data.y = torch.randint(0, 2, (len(entity2id),), device=device)  # Fictif
+train_mask = torch.rand(len(entity2id), device=device) > 0.3
 
-data = Data(x=x, edge_index=edge_index, edge_type=edge_type, num_nodes=len(entity2id))
-data.y = torch.randint(0, 2, (len(entity2id),))  # Labels fictifs
-train_mask = torch.rand(len(entity2id)) > 0.3
-
-# --- Étape 6 : R-GCN
+# --- Modèle R-GCN
 class RGCN(nn.Module):
     def __init__(self, in_feat, hidden_feat, out_feat, num_rels):
         super().__init__()
@@ -120,11 +131,10 @@ class RGCN(nn.Module):
         self.conv2 = RGCNConv(hidden_feat, out_feat, num_rels)
 
     def forward(self, data):
-        x, edge_index, edge_type = data.x, data.edge_index, data.edge_type
-        x = F.relu(self.conv1(x, edge_index, edge_type))
-        return self.conv2(x, edge_index, edge_type)
+        x = F.relu(self.conv1(data.x, data.edge_index, data.edge_type))
+        return self.conv2(x, data.edge_index, data.edge_type)
 
-rgcn = RGCN(in_feat=64, hidden_feat=32, out_feat=2, num_rels=len(rel2id))
+rgcn = RGCN(64, 32, 2, len(rel2id)).to(device)
 optimizer_rgcn = torch.optim.Adam(rgcn.parameters(), lr=0.01)
 
 print("\n🛠️ Entraînement R-GCN...")
@@ -135,52 +145,11 @@ for epoch in range(50):
     loss = F.cross_entropy(out[train_mask], data.y[train_mask])
     loss.backward()
     optimizer_rgcn.step()
-    if epoch % 10 == 0 or epoch == 1:
+    if epoch % 10 == 0:
         acc = (out.argmax(dim=1) == data.y).float().mean().item()
         print(f"[R-GCN] Epoch {epoch} - Loss: {loss.item():.4f} - Acc: {acc:.2%}")
 
-# --- Étape 7 : Injection dans Neo4j
-def inject_vulnerable_property(entity2id, rgcn_out, threshold=0.5):
-    for entity, idx in entity2id.items():
-        prob_vuln = torch.softmax(rgcn_out[idx], dim=0)[1].item()
-        vulnerable = prob_vuln > threshold
-        node = matcher.match(name=entity).first()
-        if node:
-            node["vulnerable"] = vulnerable
-            graph.push(node)
-            print(f"🛡️ Noeud {entity} : vulnérable = {vulnerable}")
-def evaluate_rotate_model(model, h_idx, r_idx, t_idx, entity2id, rel2id, k_list=[1, 3, 10]):
-    model.eval()
-    num_entities = len(entity2id)
-    
-    ranks = []
-    hits = {k: 0 for k in k_list}
-    
-    with torch.no_grad():
-        for h, r, true_t in zip(h_idx, r_idx, t_idx):
-            h_embed = h.repeat(num_entities)
-            r_embed = r.repeat(num_entities)
-            candidates = torch.arange(num_entities)
-
-            scores = model(h_embed, r_embed, candidates)
-            _, indices = torch.sort(scores, descending=True)
-            rank = (indices == true_t).nonzero(as_tuple=True)[0].item() + 1  # 1-based
-            
-            ranks.append(rank)
-            for k in k_list:
-                if rank <= k:
-                    hits[k] += 1
-    
-    mean_rank = sum(ranks) / len(ranks)
-    mrr = sum(1.0 / rank for rank in ranks) / len(ranks)
-    
-    print("\n📊 Évaluation RotatE:")
-    print(f"Mean Rank (MR): {mean_rank:.2f}")
-    print(f"Mean Reciprocal Rank (MRR): {mrr:.4f}")
-    for k in k_list:
-        print(f"Hits@{k}: {hits[k] / len(ranks):.2%}")
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-
+# --- Évaluation R-GCN
 def evaluate_rgcn_model(model, data, mask=None):
     model.eval()
     with torch.no_grad():
@@ -188,32 +157,19 @@ def evaluate_rgcn_model(model, data, mask=None):
         pred = out.argmax(dim=1)
         y_true = data.y
         y_pred = pred
-
         if mask is not None:
             y_true = y_true[mask]
             y_pred = y_pred[mask]
-
         acc = accuracy_score(y_true.cpu(), y_pred.cpu())
         precision, recall, f1, _ = precision_recall_fscore_support(
             y_true.cpu(), y_pred.cpu(), average="binary", zero_division=0
         )
-
         print("\n📊 Évaluation R-GCN:")
         print(f"Accuracy: {acc:.2%}")
-        print(f"Precision: {precision:.2%}")
-        print(f"Recall: {recall:.2%}")
-        print(f"F1-score: {f1:.2%}")
+        print(f"Precision: {precision:.2f}")
+        print(f"Recall: {recall:.2f}")
+        print(f"F1-score: {f1:.2f}")
 
-# --- Pipeline principal
-if __name__ == "__main__":
-    print("\n▶️ Injection relations at_risk_of (RotatE)...")
-    inject_at_risk_of(triplets_pred, entity2id, rel2id, rotate_model)
-    evaluate_rotate_model(rotate_model, h_idx, r_idx, t_idx, entity2id, rel2id)
+evaluate_rgcn_model(rgcn, data, mask=train_mask)
 
-    print("\n▶️ Injection propriétés vulnérables (R-GCN)...")
-    rgcn.eval()
-    with torch.no_grad():
-        out = rgcn(data)
-    inject_vulnerable_property(entity2id, out)
-    evaluate_rgcn_model(rgcn, data, mask=train_mask)
 
