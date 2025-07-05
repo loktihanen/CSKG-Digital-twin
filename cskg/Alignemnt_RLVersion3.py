@@ -136,6 +136,24 @@ opt = torch.optim.Adam(rotate.parameters(), lr=0.01)
 #with torch.no_grad():
 #    inject_vulnerable_property(entity2id, rgcn(data))
 
+
+
+# === GRAPHE POUR R-GCN ===
+x = torch.randn(len(entity2id), 64)
+edge_index = torch.tensor([
+    [entity2id[h] for h in triplets_df["head"]],
+    [entity2id[t] for t in triplets_df["tail"]]
+], dtype=torch.long)
+edge_type = torch.tensor([rel2id[r] for r in triplets_df["relation"]], dtype=torch.long)
+
+data = Data(x=x, edge_index=edge_index, edge_type=edge_type, num_nodes=len(entity2id))
+data.y = torch.randint(0, 2, (len(entity2id),))
+train_mask = torch.rand(len(entity2id)) > 0.3
+
+
+
+
+
 # === SVM ===
 # Simulation de X_train/y_train depuis les embeddings du modèle R-GCN
 X_train = data.x.numpy()
