@@ -73,7 +73,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
@@ -82,24 +81,21 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      - name: Prepare numpy version (compatible)
+      - name: Install PyTorch and PyTorch Geometric (CPU-safe versions)
         run: |
-          pip uninstall -y numpy
-          pip install "numpy<2"
-
-      - name: Install PyTorch and PyTorch Geometric (CPU)
-        run: |
-          pip install torch==2.1.0+cpu torchvision==0.16.0+cpu torchaudio==2.1.0+cpu --index-url https://download.pytorch.org/whl/cpu
-          pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
-          pip install torch-sparse -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
-          pip install torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
-          pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
+          pip install torch==2.0.1+cpu torchvision==0.15.2+cpu torchaudio==2.0.2+cpu --index-url https://download.pytorch.org/whl/torch
+          pip install torch-scatter -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
+          pip install torch-sparse -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
+          pip install torch-cluster -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
+          pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
           pip install torch-geometric
 
-      - name: Install base dependencies
+      - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install transformers --upgrade
+           pip install -r requirements.txt
+           pip install transformers --upgrade
+           pip install "shimmy>=2.0"
+
 
       - name: Debug installed packages
         run: pip list
