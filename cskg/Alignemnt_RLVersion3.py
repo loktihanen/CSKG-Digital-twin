@@ -123,7 +123,7 @@ for epoch in range(50):
     opt_rgcn.step()
     print(f"[R-GCN] Epoch {epoch} - Loss: {loss.item():.4f}")
 
- === INJECTION NEO4J ===
+# === INJECTION NEO4J ===
 def inject_vulnerable_property(entity2id, out, threshold=0.5):
     for entity, idx in entity2id.items():
         prob = torch.softmax(out[idx], dim=0)[1].item()
