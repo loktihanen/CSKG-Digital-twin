@@ -79,7 +79,7 @@ t_idx = torch.tensor([entity2id[t] for t in triplets_df["tail"]])
 rotate = RotatEModel(len(entity2id), len(rel2id))
 opt = torch.optim.Adam(rotate.parameters(), lr=0.01)
 
-for epoch in range(3):
+for epoch in range(30):
     rotate.train()
     opt.zero_grad()
     loss = -rotate(h_idx, r_idx, t_idx).mean()
@@ -114,7 +114,7 @@ class RGCN(nn.Module):
 rgcn = RGCN(64, 32, 2, len(rel2id))
 opt_rgcn = torch.optim.Adam(rgcn.parameters(), lr=0.01)
 
-for epoch in range(2):
+for epoch in range(30):
     rgcn.train()
     opt_rgcn.zero_grad()
     out = rgcn(data)
@@ -225,8 +225,10 @@ def evaluate_ranking(model, h_idx, r_idx, t_idx, entity2id, top_k=10):
     mean_rank = sum(ranks) / len(ranks)
     hits = hits_at_k / len(ranks)
     print(f"[EVAL] Mean Rank: {mean_rank:.2f} | Hits@{top_k}: {hits:.2f}")
+    return mean_rank, hits
 
-evaluate_ranking(rotate, h_idx, r_idx, t_idx, entity2id)
+# === Exécution de l’évaluation et récupération des métriques ===
+mean_rank, hits = evaluate_ranking(rotate, h_idx, r_idx, t_idx, entity2id)
 
 # === Sauvegarde des scores propagés ===
 import pickle
@@ -235,4 +237,5 @@ with open("propagated_scores.pkl", "wb") as f:
 
 # === Sauvegarde des métriques (optionnel) ===
 with open("metrics.txt", "w") as f:
-    f.write(f"[EVAL] Mean Rank: {mean_rank:.2f} | Hits@{top_k}: {hits:.2f}\n")
+    f.write(f"[EVAL] Mean Rank: {mean_rank:.2f} | Hits@10: {hits:.2f}\n")
+
