@@ -208,7 +208,7 @@ def insert_cve_neo4j(item):
         print(f"⚠️ NER erreur sur {cve_id}: {e}")
 
 # ======================== 9. PIPELINE PAGINÉE ========================
-def pipeline_kg1_pagination(max_pages=70, page_size=2000):
+def pipeline_kg1_pagination(max_pages=140, page_size=1000):
     for i in range(max_pages):
         start = i * page_size
         print(f"📦 Page {i+1} – récupération de {page_size} CVE à partir de {start}")
@@ -227,7 +227,7 @@ def pipeline_kg1_pagination(max_pages=70, page_size=2000):
 
 # ======================== 10. EXECUTION ========================
 if __name__ == "__main__":
-    pipeline_kg1_pagination(max_pages=70, page_size=2000)
+    pipeline_kg1_pagination(max_pages=140, page_size=1000)
 
 
 
