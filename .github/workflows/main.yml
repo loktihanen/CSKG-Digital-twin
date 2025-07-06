@@ -137,8 +137,8 @@ jobs:
       #- name: Run CSKG1 (NVD) local
        # run: python cskg/cskg1NVD_Neo4jDESktop.py
        
-      - name: Run CSKG1 CVEList3
-        run: python cskg/CVEList3.py
+      #- name: Run CSKG1 CVEList3
+       # run: python cskg/CVEList3.py
       #- name: Run CSKG1 CVEList
       #  run: python cskg/CVElist.py
       
@@ -150,13 +150,16 @@ jobs:
       #- name: Run KG2 (Nessus)
        # run: python cskg/inject_nessus.py
 
-      #- name: Run Alignment & Fusion
-       # run: python cskg/aligement_fusion.py
+      - name: Run Alignment & Fusion
+        run: python cskg/aligement_fusion.py
 
-      - name: Run Alignment_Fusion
+      - name: Run Alignemnt_RLVersion3
         run: python cskg/Alignemnt_RLVersion3.py
-
-      - name: Run Embedding
+        
+      - name: Run RotatE_Rgcn_alignement
+        run: python cskg/RotatE_Rgcn_alignement.py
+        
+      - name: Run embedding_predectionRgcn_RotatE
         run: python cskg/embedding_predectionRgcn_RotatE.py
         
       - name: Run Simulation
