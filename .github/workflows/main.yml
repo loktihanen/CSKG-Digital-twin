@@ -104,6 +104,15 @@ jobs:
         run: pip list
 
 
+      - name: Upload output artifacts
+        uses: actions/upload-artifact@v3
+        with:
+         name: cskg-output
+         path: |
+           graph_cskg.png
+           graph_cskg_propagation.png
+           propagated_scores.pkl
+           metrics.txt
 
 
 
