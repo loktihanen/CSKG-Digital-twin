@@ -81,7 +81,7 @@ for epoch in range(100):
 
 # ======================== 6. PRÉDICTION avec RotatE ========================
 # Exemple réel à adapter selon vos noeuds existants
-triplets_pred = [("192.168.1.1", "at_risk_of", "CVE-2008-4250")]  # Modifier avec vos vrais noms
+triplets_pred = [("192.168.2.134", "at_risk_of", ""CVE-1999-0524"")]  # Modifier avec vos vrais noms
 rel_name = "at_risk_of"
 
 def inject_at_risk_of(predictions, entity2id, rel2id, model, threshold=0.0):
