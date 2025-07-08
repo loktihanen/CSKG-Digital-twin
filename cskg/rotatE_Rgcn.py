@@ -1,3 +1,4 @@
+# ======================== 1. IMPORTS ========================
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -6,19 +7,20 @@ from torch_geometric.data import Data
 from torch_geometric.nn import RGCNConv
 from py2neo import Graph, NodeMatcher, Relationship
 
-# --- Connexion à Neo4j
+# ======================== 2. CONNEXION NEO4J ========================
 uri = "neo4j+s://1cb37128.databases.neo4j.io"
 user = "neo4j"
-password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8
+password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
 graph = Graph(uri, auth=(user, password))
+matcher = NodeMatcher(graph)
 
 try:
     info = graph.run("RETURN 1").data()
-    print("Connexion Neo4j réussie :", info)
+    print("✅ Connexion Neo4j réussie :", info)
 except Exception as e:
-    print("Erreur de connexion Neo4j :", e)
+    print("❌ Erreur de connexion Neo4j :", e)
 
-# --- Étape 1 : Extraction des triplets depuis Neo4j
+# ======================== 3. EXTRACTION DES TRIPLETS ========================
 query = """
 MATCH (h)-[r]->(t)
 WHERE h.name IS NOT NULL AND t.name IS NOT NULL
@@ -27,13 +29,12 @@ RETURN h.name AS head, type(r) AS relation, t.name AS tail
 results = graph.run(query).data()
 triplets_df = pd.DataFrame(results)
 
-# Vérification
 if triplets_df.empty:
     raise ValueError("Aucun triplet récupéré depuis Neo4j. Vérifiez votre base.")
 
 print(f"✅ {len(triplets_df)} triplets récupérés depuis Neo4j")
 
-# --- Étape 2 : Mapping entités et relations
+# ======================== 4. ENCODAGE DES ENTITÉS & RELATIONS ========================
 entities = pd.Series(pd.concat([triplets_df["head"], triplets_df["tail"]]).unique()).reset_index()
 entity2id = dict(zip(entities[0], entities["index"]))
 relations = pd.Series(triplets_df["relation"].unique()).reset_index()
@@ -43,7 +44,7 @@ h_idx = torch.tensor([entity2id[h] for h in triplets_df["head"]])
 r_idx = torch.tensor([rel2id[r] for r in triplets_df["relation"]])
 t_idx = torch.tensor([entity2id[t] for t in triplets_df["tail"]])
 
-# --- Étape 3 : Modèle RotatE
+# ======================== 5. MODELE RotatE ========================
 class RotatEModel(nn.Module):
     def __init__(self, num_entities, num_relations, embedding_dim=64):
         super().__init__()
@@ -78,12 +79,12 @@ for epoch in range(100):
     if epoch % 10 == 0 or epoch == 2:
         print(f"[RotatE] Epoch {epoch} - Loss: {loss.item():.4f}")
 
-# --- Étape 4 : Prédiction avec RotatE
-triplets_pred = [("host-001", "at_risk_of", "CVE-2024-99999")]
-matcher = NodeMatcher(graph)
+# ======================== 6. PRÉDICTION avec RotatE ========================
+# Exemple réel à adapter selon vos noeuds existants
+triplets_pred = [("192.168.1.1", "at_risk_of", "CVE-2008-4250")]  # Modifier avec vos vrais noms
+rel_name = "at_risk_of"
 
 def inject_at_risk_of(predictions, entity2id, rel2id, model, threshold=0.0):
-    rel_name = "at_risk_of"
     for h, r, t in predictions:
         if h not in entity2id or r not in rel2id or t not in entity2id:
             print(f"⚠️ Entité ou relation inconnue : {h}, {r}, {t}")
@@ -102,7 +103,7 @@ def inject_at_risk_of(predictions, entity2id, rel2id, model, threshold=0.0):
                 graph.merge(rel)
                 print(f"✅ Relation ({h})-[:{rel_name}]->({t}) injectée (score {score:.4f})")
 
-# --- Étape 5 : Préparation pour R-GCN
+# ======================== 7. R-GCN : Classification ========================
 x = torch.randn(len(entity2id), 64)
 edge_index = torch.tensor([
     [entity2id[h] for h in triplets_df["head"]],
@@ -111,10 +112,9 @@ edge_index = torch.tensor([
 edge_type = torch.tensor([rel2id[r] for r in triplets_df["relation"]], dtype=torch.long)
 
 data = Data(x=x, edge_index=edge_index, edge_type=edge_type, num_nodes=len(entity2id))
-data.y = torch.randint(0, 2, (len(entity2id),))  # Dummy labels
+data.y = torch.randint(0, 2, (len(entity2id),))  # Faux labels pour l’exemple
 train_mask = torch.rand(len(entity2id)) > 0.3
 
-# --- Étape 6 : R-GCN
 class RGCN(nn.Module):
     def __init__(self, in_feat, hidden_feat, out_feat, num_rels):
         super().__init__()
@@ -141,18 +141,18 @@ for epoch in range(50):
         acc = (out.argmax(dim=1) == data.y).float().mean().item()
         print(f"[R-GCN] Epoch {epoch} - Loss: {loss.item():.4f} - Acc: {acc:.2%}")
 
-# --- Étape 7 : Injection dans Neo4j
+# ======================== 8. INJECTION DE LA PROPRIÉTÉ "vulnerable" ========================
 def inject_vulnerable_property(entity2id, rgcn_out, threshold=0.5):
     for entity, idx in entity2id.items():
         prob_vuln = torch.softmax(rgcn_out[idx], dim=0)[1].item()
         vulnerable = prob_vuln > threshold
         node = matcher.match(name=entity).first()
-        if node:
+        if node and "Host" in list(node.labels):  # Limite aux Hosts
             node["vulnerable"] = vulnerable
             graph.push(node)
             print(f"🛡️ Noeud {entity} : vulnerable = {vulnerable}")
 
-# --- Pipeline principal
+# ======================== 9. PIPELINE PRINCIPAL ========================
 if __name__ == "__main__":
     print("\n▶️ Injection relations at_risk_of (RotatE)...")
     inject_at_risk_of(triplets_pred, entity2id, rel2id, rotate_model)
@@ -162,3 +162,4 @@ if __name__ == "__main__":
     with torch.no_grad():
         out = rgcn(data)
     inject_vulnerable_property(entity2id, out)
+
