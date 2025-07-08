@@ -131,6 +131,9 @@ jobs:
 
 
 
+      - name: Run rotatE_Rgcn
+        run: python cskg/rotatE_Rgcn.py
+
      # - name: Run embeddingsRotateRGCN script
        # run: python cskg/embeddingsRotateRGCN.py
 
