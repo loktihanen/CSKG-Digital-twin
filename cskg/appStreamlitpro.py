@@ -352,85 +352,38 @@ elif menu == "Simulation":
     import tempfile
     import matplotlib.pyplot as plt
     import seaborn as sns
-    from rdflib import Graph as RDFGraph, Namespace, RDF, RDFS, OWL, Literal
-    from owlrl import DeductiveClosure, OWLRL_Semantics
-    from rdflib.plugins.sparql import prepareQuery
 
     st.header("🧪 Simulation basée sur le Jumeau Numérique")
-    st.info("Ce module regroupe raisonnement OWL, analyse de risques, simulation What-If et visualisation interactive.")
+    st.info("Ce module regroupe l'analyse de propagation, visualisation dynamique, et analyse de risque à partir des données Neo4j réelles.")
 
     # ======================== 1. 🔄 Extraction Neo4j ========================
-    uri = "neo4j+s://8d5fbce8.databases.neo4j.io"
+    uri = "neo4j+s://1cb37128.databases.neo4j.io"
     user = "neo4j"
-    password = "VpzGP3RDVB7AtQ1vfrQljYUgxw4VBzy0tUItWeRB9CM"
+    password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
     graph = Graph(uri, auth=(user, password))
     matcher = NodeMatcher(graph)
 
     query = """
-    MATCH (h)-[r:IMPACTS]->(s)
-    WHERE h.name IS NOT NULL AND s.name IS NOT NULL
-    RETURN h.name AS host, type(r) AS relation, s.name AS service, r.weight AS weight
+    MATCH (h:Host)-[r:COMMUNICATES_WITH|at_risk_of|vulnerableTo|detects|runsPlugin|scannedBy|hasCVE|BELONGS_TO]->(t)
+    WHERE h.name IS NOT NULL AND t.name IS NOT NULL
+    RETURN h.name AS host, type(r) AS relation, t.name AS target
+    LIMIT 300
     """
-    df_impacts = graph.run(query).to_data_frame()
+    df_relations = graph.run(query).to_data_frame()
 
-    # ======================== 2. 🧠 Raisonnement OWL ========================
-    uploaded_file = st.file_uploader("📂 Uploader le fichier OWL enrichi (`cskg3_enriched.ttl`)", type="ttl")
-    rdf_graph = RDFGraph()
-    CYBER = Namespace("http://example.org/cyber#")
-    rdf_graph.bind("cyber", CYBER)
-
-    if uploaded_file:
-        try:
-            rdf_graph.parse(uploaded_file, format="turtle")
-            DeductiveClosure(OWLRL_Semantics).expand(rdf_graph)
-            rdf_graph.serialize("cskg3_inferenced.ttl", format="turtle")
-            st.success("✅ Raisonnement OWL appliqué avec succès.")
-        except Exception as e:
-            st.error(f"Erreur lors de l’inférence OWL : {e}")
-    else:
-        st.warning("Veuillez uploader le fichier `cskg3_enriched.ttl` pour activer le raisonnement OWL.")
-
-    # ======================== 3. 🔍 SPARQL: actifs à risque ========================
-    try:
-        query_sparql = prepareQuery("""
-        PREFIX cyber: <http://example.org/cyber#>
-        SELECT ?asset ?cve WHERE {
-          ?asset cyber:at_risk_of ?cve .
-        }
-        """)
-        risks = [(row.asset.split("#")[-1], row.cve.split("#")[-1]) for row in rdf_graph.query(query_sparql)]
-        df_risks = pd.DataFrame(risks, columns=["Asset", "CVE"])
-
-        if not df_risks.empty:
-            st.subheader("🔍 Actifs à risque détectés par inférence")
-            st.dataframe(df_risks, use_container_width=True)
-        else:
-            st.info("Aucun actif à risque détecté par inférence OWL.")
-    except Exception as e:
-        st.error(f"Erreur SPARQL ou inférence non disponible : {e}")
-
-    # ======================== 4. 🌐 Vue interactive PyVis ========================
-    st.subheader("🌐 Visualisation interactive Host → Service")
-    G_nx = nx.DiGraph()
-    for _, row in df_impacts.iterrows():
-        host = row['host']
-        service = row['service']
-        weight = row['weight'] if pd.notnull(row['weight']) else 1.0
-        try:
-            weight = float(weight)
-        except:
-            weight = 1.0
-
-        G_nx.add_node(host, label=host, color="#00cc66", type="Host")
-        G_nx.add_node(service, label=service, color="#ffaa00", type="Service")
-        G_nx.add_edge(host, service, weight=weight)
+    # ======================== 2. 🌐 Graph Neo4j dynamique ========================
+    st.subheader("🌐 Visualisation des Relations Cyber – PyVis")
+    G = nx.DiGraph()
+    for _, row in df_relations.iterrows():
+        G.add_node(row['host'], label=row['host'], color="#00cc66", type="Host")
+        G.add_node(row['target'], label=row['target'], color="#ffaa00", type="Target")
+        G.add_edge(row['host'], row['target'], label=row['relation'], weight=1.0)
 
     net = Network(height="700px", width="100%", bgcolor="#1e1e1e", font_color="white", directed=True)
-    for node, data in G_nx.nodes(data=True):
+    for node, data in G.nodes(data=True):
         net.add_node(node, label=data.get("label", node), color=data.get("color", "gray"), title=data.get("type", ""))
-    for u, v, data in G_nx.edges(data=True):
-        w = data.get("weight", 1.0)
-        net.add_edge(u, v, value=w, title=f"Poids : {w:.2f}")
+    for u, v, d in G.edges(data=True):
+        net.add_edge(u, v, title=d["label"], value=d.get("weight", 1.0))
 
     tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
     net.save_graph(tmpfile.name)
@@ -438,9 +391,9 @@ elif menu == "Simulation":
         html = f.read()
     st.components.v1.html(html, height=700, scrolling=True)
 
-    # ======================== 5. 🚀 Simulation What-If ========================
+    # ======================== 3. 🚀 Simulation What-If ========================
     st.subheader("🚀 Simulation What-If (Propagation de risque)")
-    hosts = sorted(set(df_impacts["host"]))
+    hosts = sorted(set(df_relations["host"]))
     selected_host = st.selectbox("Choisir un hôte à simuler", hosts)
     decay = st.slider("Facteur de dissipation", 0.1, 1.0, 0.6, step=0.05)
     max_depth = st.slider("Profondeur max", 1, 5, 3)
@@ -463,62 +416,60 @@ elif menu == "Simulation":
         return dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
 
     if st.button("🚀 Lancer la simulation"):
-        results = simulate_propagation(G_nx, selected_host, decay, max_depth)
+        results = simulate_propagation(G, selected_host, decay, max_depth)
         st.success(f"Propagation depuis {selected_host} effectuée avec {len(results)} nœuds affectés.")
 
-        # ======================== 7. 📊 Analyse & heatmap ========================
-        st.subheader("📊 Heatmap des services impactés")
-        service_scores = {n: s for n, s in results.items() if G_nx.nodes[n].get("type") == "Service"}
-        if service_scores:
-            df_heat = pd.DataFrame.from_dict(service_scores, orient="index", columns=["Score"])
-            st.dataframe(df_heat.style.background_gradient(cmap="Reds"), use_container_width=True)
-            plt.figure(figsize=(8, max(1, len(df_heat)*0.5)))
-            sns.heatmap(df_heat.sort_values("Score", ascending=False), annot=True, cmap="Reds", fmt=".2f")
-            plt.title(f"Propagation depuis {selected_host}")
-            st.pyplot(plt.gcf())
-            plt.clf()
-        else:
-            st.info("Aucun service impacté détecté.")
+        # ======================== 4. 📊 Heatmap ========================
+        st.subheader("📊 Heatmap des Services Impactés")
+        df_impact = pd.DataFrame.from_dict(results, orient="index", columns=["Score"])
+        st.dataframe(df_impact.style.background_gradient(cmap="Reds"), use_container_width=True)
+        plt.figure(figsize=(10, max(1, len(df_impact)*0.4)))
+        sns.heatmap(df_impact.sort_values("Score", ascending=False), annot=True, fmt=".2f", cmap="Reds")
+        st.pyplot(plt.gcf())
+        plt.clf()
 
-    # ======================== 6. 🔗 Chaîne d'attaque simulée ========================
-    st.subheader("🔗 Chaîne d'attaque simulée (fictive)")
-    attack_chain = [
-        ("host-001", "connected_to", "host-002"),
-        ("host-002", "connected_to", "host-003"),
-        ("host-003", "at_risk_of", "CVE-2024-99999"),
-        ("CVE-2024-99999", "targets", "CriticalAsset-01")
-    ]
-    G_attack = nx.DiGraph()
-    for h, r, t in attack_chain:
-        G_attack.add_edge(h, t, label=r)
+    # ======================== 5. 🔗 Chaîne d'attaque dynamique ========================
+    st.subheader("🔗 Chaîne d'attaque simulée (Neo4j)")
+    chain_query = """
+    MATCH (h1:Host)-[:COMMUNICATES_WITH]->(h2:Host)-[:at_risk_of]->(c:CVE)-[:affects]->(p:Product)
+    RETURN h1.name AS src, h2.name AS mid, c.name AS cve, p.name AS product
+    LIMIT 10
+    """
+    df_chain = graph.run(chain_query).to_data_frame()
+    if not df_chain.empty:
+        G_attack = nx.DiGraph()
+        for _, row in df_chain.iterrows():
+            G_attack.add_edge(row["src"], row["mid"], label="COMMUNICATES_WITH")
+            G_attack.add_edge(row["mid"], row["cve"], label="at_risk_of")
+            G_attack.add_edge(row["cve"], row["product"], label="affects")
 
-    pos = nx.spring_layout(G_attack)
-    plt.figure(figsize=(8, 4))
-    nx.draw(G_attack, pos, with_labels=True, node_color="lightcoral", node_size=2000, font_size=9, edge_color="gray")
-    edge_labels = nx.get_edge_attributes(G_attack, 'label')
-    nx.draw_networkx_edge_labels(G_attack, pos, edge_labels=edge_labels)
-    st.pyplot(plt.gcf())
-    plt.clf()
-        # ======================== 7. 🧨 Analyse de risque simulée ========================
-    st.subheader("🧨 Analyse de Risque Étendue")
+        pos = nx.spring_layout(G_attack, seed=42)
+        plt.figure(figsize=(10, 5))
+        nx.draw(G_attack, pos, with_labels=True, node_color="lightcoral", node_size=2000, font_size=9, edge_color="gray")
+        edge_labels = nx.get_edge_attributes(G_attack, 'label')
+        nx.draw_networkx_edge_labels(G_attack, pos, edge_labels=edge_labels)
+        st.pyplot(plt.gcf())
+        plt.clf()
+    else:
+        st.info("Aucune chaîne d'attaque détectée dans la base.")
 
-    if st.button("🧨 Lancer une attaque simulée ciblée"):
-        target_asset = st.selectbox("🎯 Choisir l'actif critique cible", sorted(G_nx.nodes))
-        impacted = simulate_propagation(G_nx, target_asset, decay=0.5, max_depth=4)
-        critical_services = {n: s for n, s in impacted.items() if G_nx.nodes[n].get("type") == "Service"}
-        
-        if critical_services:
-            df_critical = pd.DataFrame.from_dict(critical_services, orient="index", columns=["RiskScore"])
-            df_critical.index.name = "Service"
-            df_critical = df_critical.sort_values("RiskScore", ascending=False).head(10)
-
+    # ======================== 6. 💨 Analyse de Risque étendue ========================
+    st.subheader("💨 Analyse de Risque étendue")
+    if st.button("💨 Lancer une attaque ciblée"):
+        target_asset = st.selectbox("🌟 Choisir l'actif critique cible", sorted(G.nodes))
+        impacted = simulate_propagation(G, target_asset, decay=0.5, max_depth=4)
+        services = {n: s for n, s in impacted.items() if G.nodes[n].get("type") == "Target"}
+        if services:
+            df_risk = pd.DataFrame.from_dict(services, orient="index", columns=["RiskScore"])
+            df_risk.index.name = "Service"
+            df_risk = df_risk.sort_values("RiskScore", ascending=False).head(10)
             st.subheader("🔥 TOP 10 services les plus vulnérables")
-            st.bar_chart(df_critical)
-
+            st.bar_chart(df_risk)
             st.subheader("📉 Détails des services critiques")
-            st.dataframe(df_critical.style.background_gradient(cmap="OrRd"), use_container_width=True)
+            st.dataframe(df_risk.style.background_gradient(cmap="OrRd"), use_container_width=True)
         else:
-            st.info("Aucun service vulnérable détecté dans cette simulation.")
+            st.info("Aucun service vulnérable détecté.")
+
 elif menu == "Recommandation":
 
     import streamlit as st
@@ -535,9 +486,9 @@ elif menu == "Recommandation":
     st.info("Extraction depuis Neo4j + inférence OWL automatique + enrichissement NVD, mapping ATT&CK et recommandations NLP.")
 
     # Connexion Neo4j Aura
-    uri = "neo4j+s://8d5fbce8.databases.neo4j.io"
+    uri = "neo4j+s://1cb37128.databases.neo4j.io"
     user = "neo4j"
-    password = "VpzGP3RDVB7AtQ1vfrQljYUgxw4VBzy0tUItWeRB9CM"
+    password = "qUocbHeI6RTR3sqwFE6IhnAX5nk9N_KnQVFthB3E9S8"
     graph = Graph(uri, auth=(user, password))
 
     st.write("⏳ Extraction des relations `IS_VULNERABLE_TO` depuis Neo4j...")
