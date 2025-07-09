@@ -695,43 +695,62 @@ elif menu == "Simulation de risque":
 
 
 # Dans ton menu Streamlit
+# Dans ton menu Streamlit
 elif menu == "Simulation multi-relations":
     st.subheader("🔮 Propagation et relations réseau multi-types")
 
-    query = """
-    MATCH (h:Host)-[r]->(t)
-    WHERE type(r) IN ['at_risk_of', 'COMMUNICATES_WITH', 'vulnerableTo']
+    # Tu peux ajuster ou étendre les relations ici
+    relations_utiles = [
+        'at_risk_of', 'COMMUNICATES_WITH', 'vulnerableTo',
+        'affects', 'detects', 'runsPlugin', 'scannedBy', 'hasCVE',
+        'BELONGS_TO', 'hasSeverity'
+    ]
+
+    query = f"""
+    MATCH (h)-[r]->(t)
+    WHERE type(r) IN {relations_utiles}
+    AND h.name IS NOT NULL AND t.name IS NOT NULL
     RETURN h.name AS head, type(r) AS relation, t.name AS tail
-    LIMIT 100
+    LIMIT 200
     """
+
     df = pd.DataFrame(graph_db.run(query).data())
     st.dataframe(df)
 
     if not df.empty:
         G = nx.DiGraph()
+
+        # Construction du graphe avec les types de relations
         for _, row in df.iterrows():
             G.add_edge(row["head"], row["tail"], label=row["relation"])
 
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(14, 10))
         pos = nx.spring_layout(G, seed=42)
 
-        # Couleurs par type de relation
-        edge_color_map = {
-            "at_risk_of": "red",
-            "COMMUNICATES_WITH": "green",
-            "vulnerableTo": "orange"
-        }
-        # Préparer la liste des couleurs dans l’ordre des arêtes
-        edge_colors = [edge_color_map.get(d["label"], "gray") for _, _, d in G.edges(data=True)]
+        # Palette simple : assigner une couleur à chaque relation
+        unique_rels = list(set(nx.get_edge_attributes(G, "label").values()))
+        rel_colors = ["red", "green", "orange", "blue", "purple", "brown", "cyan", "pink", "gray", "olive"]
+        color_map = {rel: rel_colors[i % len(rel_colors)] for i, rel in enumerate(unique_rels)}
+        edge_colors = [color_map[d["label"]] for _, _, d in G.edges(data=True)]
 
-        # Dessiner noeuds
-        nx.draw(G, pos, with_labels=True, node_color="lightblue", node_size=1200, font_size=8, edge_color=edge_colors, arrowsize=15)
+        # Dessiner le graphe
+        nx.draw(
+            G, pos, with_labels=True,
+            node_color="lightblue", edge_color=edge_colors,
+            node_size=1300, font_size=8, arrowsize=15
+        )
 
-        # Dessiner étiquettes arêtes (relations)
+        # Étiquettes des arêtes (noms des relations)
         edge_labels = {(u, v): d["label"] for u, v, d in G.edges(data=True)}
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_color='black', font_size=9)
 
+        # Légende personnalisée
+        import matplotlib.patches as mpatches
+        legend_handles = [mpatches.Patch(color=color_map[rel], label=rel) for rel in unique_rels]
+        plt.legend(handles=legend_handles, title="Relations", bbox_to_anchor=(1, 1), loc='upper left')
+
         st.pyplot(plt)
+
 
 
 st.markdown("---")
