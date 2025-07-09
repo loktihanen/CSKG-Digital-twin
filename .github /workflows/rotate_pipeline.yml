@@ -1,0 +1,30 @@
+name: Run CSKG2-Rotate Pipeline
+
+on:
+  workflow_dispatch:  # Déclenchement manuel
+  push:               # Ou automatique à chaque push
+    branches: [ main ]
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout repo
+      uses: actions/checkout@v3
+
+    - name: 🐍 Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: 📦 Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install torch torchvision torchaudio
+        pip install torch-geometric -f https://data.pyg.org/whl/torch-2.0.0+cpu.html
+        pip install py2neo pandas sentence-transformers fuzzywuzzy scikit-learn tqdm
+
+    - name: 🚀 Run the pipeline
+      run: |
+        python cskg/rotate_pipeline.py
