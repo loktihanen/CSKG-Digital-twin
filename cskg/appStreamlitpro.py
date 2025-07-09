@@ -470,6 +470,7 @@ elif menu == "Simulation":
         else:
             st.info("Aucun service vulnérable détecté.")
 
+
 elif menu == "Recommandation":
 
     import streamlit as st
