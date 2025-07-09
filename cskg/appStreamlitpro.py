@@ -49,9 +49,9 @@ menu = st.sidebar.radio("📌 Menu", [
     "Simulation de propagation de vulnérabilité",
     "Simulation de risque",
     "Simulation multi-relations",
+    "VISUALISATION 3D AVEC PYVIS",
     "Simulation",
     "Recommandation",
-    "Simulation de"
   #  "Heatmap"
 ])
 
@@ -753,7 +753,7 @@ elif menu == "Simulation multi-relations":
         st.pyplot(plt)
 
 # ======================== VISUALISATION 3D AVEC PYVIS ========================
-elif menu == "Simulation de":
+elif menu == "VISUALISATION 3D AVEC PYVIS":
     st.subheader("🌐 Visualisation interactive 3D du CSKG (Pyvis)")
 
     relations_utiles = [
