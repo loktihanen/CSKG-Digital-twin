@@ -471,6 +471,63 @@ elif menu == "Simulation":
             st.info("Aucun service vulnérable détecté.")
 
 
+# Dans ton menu Streamlit
+elif menu == "Simulation multi-relations":
+    st.subheader("🔮 Propagation et relations réseau multi-types")
+
+    # Tu peux ajuster ou étendre les relations ici
+    relations_utiles = [
+        'at_risk_of', 'COMMUNICATES_WITH', 'vulnerableTo',
+        'affects', 'detects', 'runsPlugin', 'scannedBy', 'hasCVE',
+        'BELONGS_TO', 'hasSeverity'
+    ]
+
+    query = f"""
+    MATCH (h)-[r]->(t)
+    WHERE type(r) IN {relations_utiles}
+    AND h.name IS NOT NULL AND t.name IS NOT NULL
+    RETURN h.name AS head, type(r) AS relation, t.name AS tail
+    LIMIT 200
+    """
+
+    df = pd.DataFrame(graph_db.run(query).data())
+    st.dataframe(df)
+
+    if not df.empty:
+        G = nx.DiGraph()
+
+        # Construction du graphe avec les types de relations
+        for _, row in df.iterrows():
+            G.add_edge(row["head"], row["tail"], label=row["relation"])
+
+        plt.figure(figsize=(14, 10))
+        pos = nx.spring_layout(G, seed=42)
+
+        # Palette simple : assigner une couleur à chaque relation
+        unique_rels = list(set(nx.get_edge_attributes(G, "label").values()))
+        rel_colors = ["red", "green", "orange", "blue", "purple", "brown", "cyan", "pink", "gray", "olive"]
+        color_map = {rel: rel_colors[i % len(rel_colors)] for i, rel in enumerate(unique_rels)}
+        edge_colors = [color_map[d["label"]] for _, _, d in G.edges(data=True)]
+
+        # Dessiner le graphe
+        nx.draw(
+            G, pos, with_labels=True,
+            node_color="lightblue", edge_color=edge_colors,
+            node_size=1300, font_size=8, arrowsize=15
+        )
+
+        # Étiquettes des arêtes (noms des relations)
+        edge_labels = {(u, v): d["label"] for u, v, d in G.edges(data=True)}
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_color='black', font_size=9)
+
+        # Légende personnalisée
+        import matplotlib.patches as mpatches
+        legend_handles = [mpatches.Patch(color=color_map[rel], label=rel) for rel in unique_rels]
+        plt.legend(handles=legend_handles, title="Relations", bbox_to_anchor=(1, 1), loc='upper left')
+
+        st.pyplot(plt)
+
+
 elif menu == "Recommandation":
 
     import streamlit as st
