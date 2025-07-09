@@ -49,9 +49,9 @@ menu = st.sidebar.radio("📌 Menu", [
     "Simulation de propagation de vulnérabilité",
     "Simulation de risque",
     "Simulation multi-relations",
-    "Simulation de",
     "Simulation",
     "Recommandation",
+    "Simulation de"
   #  "Heatmap"
 ])
 
