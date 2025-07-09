@@ -49,6 +49,7 @@ menu = st.sidebar.radio("📌 Menu", [
     "Simulation de propagation de vulnérabilité",
     "Simulation de risque",
     "Simulation",
+    "Simulation multi-relations",
     "Recommandation",
   #  "Heatmap"
 ])
@@ -691,6 +692,46 @@ elif menu == "Simulation de risque":
     else:
         st.dataframe(df_vuln)
         st.bar_chart(df_vuln.set_index("host"))
+
+
+# Dans ton menu Streamlit
+elif menu == "Simulation multi-relations":
+    st.subheader("🔮 Propagation et relations réseau multi-types")
+
+    query = """
+    MATCH (h:Host)-[r]->(t)
+    WHERE type(r) IN ['at_risk_of', 'COMMUNICATES_WITH', 'vulnerableTo']
+    RETURN h.name AS head, type(r) AS relation, t.name AS tail
+    LIMIT 100
+    """
+    df = pd.DataFrame(graph_db.run(query).data())
+    st.dataframe(df)
+
+    if not df.empty:
+        G = nx.DiGraph()
+        for _, row in df.iterrows():
+            G.add_edge(row["head"], row["tail"], label=row["relation"])
+
+        plt.figure(figsize=(12, 8))
+        pos = nx.spring_layout(G, seed=42)
+
+        # Couleurs par type de relation
+        edge_color_map = {
+            "at_risk_of": "red",
+            "COMMUNICATES_WITH": "green",
+            "vulnerableTo": "orange"
+        }
+        # Préparer la liste des couleurs dans l’ordre des arêtes
+        edge_colors = [edge_color_map.get(d["label"], "gray") for _, _, d in G.edges(data=True)]
+
+        # Dessiner noeuds
+        nx.draw(G, pos, with_labels=True, node_color="lightblue", node_size=1200, font_size=8, edge_color=edge_colors, arrowsize=15)
+
+        # Dessiner étiquettes arêtes (relations)
+        edge_labels = {(u, v): d["label"] for u, v, d in G.edges(data=True)}
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_color='black', font_size=9)
+
+        st.pyplot(plt)
 
 
 st.markdown("---")
