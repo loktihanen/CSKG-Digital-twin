@@ -51,7 +51,7 @@ menu = st.sidebar.radio("📌 Menu", [
     "Simulation multi-relations",
     "VISUALISATION 3D AVEC PYVIS",
     "Simulation",
-    "Recommandation",
+    #"Recommandation",
   #  "Heatmap"
 ])
 
