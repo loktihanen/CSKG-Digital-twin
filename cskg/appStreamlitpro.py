@@ -48,8 +48,8 @@ menu = st.sidebar.radio("📌 Menu", [
     "CSKG3 – Fusionné",
     "Simulation de propagation de vulnérabilité",
     "Simulation de risque",
-    "Simulation",
     "Simulation multi-relations",
+    "Simulation",
     "Recommandation",
   #  "Heatmap"
 ])
