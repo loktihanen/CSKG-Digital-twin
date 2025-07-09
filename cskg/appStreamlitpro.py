@@ -751,6 +751,78 @@ elif menu == "Simulation multi-relations":
 
         st.pyplot(plt)
 
+# ======================== VISUALISATION 3D AVEC PYVIS ========================
+elif menu == "Simulation de ":
+    st.subheader("🌐 Visualisation interactive 3D du CSKG (Pyvis)")
+
+    relations_utiles = [
+        'at_risk_of', 'vulnerableTo', 'COMMUNICATES_WITH',
+        'affects', 'detects', 'runsPlugin', 'scannedBy',
+        'hasCVE', 'hasSeverity', 'BELONGS_TO'
+    ]
+
+    query = f"""
+    MATCH (h)-[r]->(t)
+    WHERE type(r) IN {relations_utiles}
+      AND h.name IS NOT NULL AND t.name IS NOT NULL
+    RETURN labels(h)[0] AS source_label, h.name AS source,
+           type(r) AS relation,
+           labels(t)[0] AS target_label, t.name AS target
+    LIMIT 300
+    """
+
+    df = pd.DataFrame(graph_db.run(query).data())
+    st.write(f"🔎 {len(df)} relations récupérées")
+
+    # =================== Construction du graphe Pyvis ===================
+    G = Network(height="700px", width="100%", directed=True, notebook=False)
+    G.barnes_hut()  # pour layout 3D / physique réaliste
+
+    node_colors = {
+        "Host": "#1f77b4",
+        "CVE": "#d62728",
+        "Plugin": "#9467bd",
+        "Scanner": "#2ca02c",
+        "Product": "#ff7f0e",
+        "Vendor": "#8c564b",
+        "Version": "#e377c2",
+        "Severity": "#7f7f7f",
+        "CWE": "#17becf",
+        "CPE": "#bcbd22",
+        "Network_Segment": "#aec7e8"
+    }
+
+    added_nodes = set()
+
+    for _, row in df.iterrows():
+        source, target = row["source"], row["target"]
+        source_label, target_label = row["source_label"], row["target_label"]
+        relation = row["relation"]
+
+        if source not in added_nodes:
+            G.add_node(source, label=source, title=source_label, color=node_colors.get(source_label, "#cccccc"))
+            added_nodes.add(source)
+        if target not in added_nodes:
+            G.add_node(target, label=target, title=target_label, color=node_colors.get(target_label, "#cccccc"))
+            added_nodes.add(target)
+
+        G.add_edge(source, target, label=relation)
+
+    # =================== Export HTML et affichage dans Streamlit ===================
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
+    G.show(tmp_file.name)
+
+    with open(tmp_file.name, "r", encoding="utf-8") as f:
+        html = f.read()
+        st.components.v1.html(html, height=750, scrolling=True)
+
+    # ✅ Option de téléchargement
+    st.download_button(
+        label="📥 Télécharger la visualisation HTML",
+        data=html,
+        file_name="cskg_visualisation_3d.html",
+        mime="text/html"
+    )
 
 
 st.markdown("---")
