@@ -14,123 +14,35 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      # Etape 1: Installer Python 3.11
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
+      # Etape 2: Mettre à jour pip
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      # Etape 3: Installer PyTorch et ses dépendances compatibles avec CPU
+      - name: Install PyTorch (CPU)
+        run: |
+          pip install torch==2.1.0+cpu torchvision==0.16.0+cpu torchaudio==2.1.0+cpu --index-url https://download.pytorch.org/whl/cpu
+          pip install torch-scatter==2.1.0+cpu -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
+          pip install torch-sparse==2.1.0+cpu -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
+          pip install torch-cluster==1.6.0+cpu -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
+          pip install torch-spline-conv==1.2.1+cpu -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
+          pip install torch-geometric
+
+      # Etape 4: Installer les autres dépendances nécessaires (si non incluses dans requirements.txt)
       - name: Install other dependencies
         run: pip install -r requirements.txt
-        
-      - name: Install PyTorch (CPU)
-        run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-      - name: 🔧 Install PyG (compatible with torch==2.7.1+cpu)
-        run: |
-         pip install torch==2.1.0+cpu torchvision==0.16.0+cpu torchaudio==2.1.0+cpu --index-url https://download.pytorch.org/whl/cpu
-         pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
-         pip install torch-sparse -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
-         pip install torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
-         pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
-         pip install torch-geometric
-
-     # #- name: Install other dependencies
-       # #run: pip install -r requirements.txt
-
-      - name: Install base dependencies
-        run: |
-          pip install numpy
-          pip install -r requirements.txt
-          pip install transformers --upgrade
-      - name: Install base dependencies (NumPy compatible)
-        run: |
-          pip uninstall -y numpy
-          pip install "numpy<2"
-          pip install -r requirements.txt
-          pip install transformers --upgrade
-
+      # Etape 5: Vérifier les versions des paquets installés
       - name: Debug installed packages
         run: pip list
 
-
-
-
-#name: Run Cyber Digital Twin Pipeline
-
-#on:
-#  push:
-#    branches: [ main ]
-#  workflow_dispatch:
-#  schedule:
- #   - cron: '0 3 * * *'  # tous les jours à 4h Tunisie (3h UTC)
-#
-#jobs:
-#  build:
-#    runs-on: ubuntu-latest
-
-#    steps:
-#      - uses: actions/checkout@v3
-#      - name: Set up Python 3.11
-    #    uses: actions/setup-python@v4
-  #      with:
-       #   python-version: '3.11'
-
-   #   - name: Upgrade pip
-    #    run: python -m pip install --upgrade pip
-
-   #   - name: Install PyTorch and PyTorch Geometric (CPU-safe versions)
-   #     run: |
-        #  pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2
-         # pip install torch-scatter -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
-          #pip install torch-sparse -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
-          #pip install torch-cluster -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
-       #   pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.0.1+cpu.html
-        #  pip install torch-geometric
-      #- name: Check torch version
-       # run:  python -c "import torch; print('Torch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
-
-
-      #- name: Install dependencies
-       # run: |
-        #   pip install -r requirements.txt
-         #  pip install transformers --upgrade
-          # pip install "shimmy>=2.0"
-
-
-  #    - name: Debug installed packages
-   #     run: pip list
-
-
-   #   - name: Upload output artifacts
-     #   uses: actions/upload-artifact@v3
-    #    with:
-      #   name: cskg-output
-      #   path: |
-        #   graph_cskg.png
-         #  graph_cskg_propagation.png
-         #  propagated_scores.pkl
-        #   metrics.txt
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      # Etape 6: Exécuter le script rotatE_Rgcn.py
       - name: Run rotatE_Rgcn
         run: python rotatE_Rgcn.py
 
